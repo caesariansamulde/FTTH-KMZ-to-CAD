@@ -10125,6 +10125,8 @@ function openPreviewTab(html: string) {
   if (!opened) throw new Error("The browser blocked the preview tab. Allow popups for this local app and try again.");
 }
 
+const isStaticWeb = typeof window !== "undefined" && !window.location.hostname.match(/^(localhost|127\.0\.0\.1)/);
+
 async function downloadDwg(
   fileName: string,
   dxf: string,
@@ -10135,6 +10137,12 @@ async function downloadDwg(
     rawPoles?: ReturnType<typeof rawPoleStencilPlacements>;
   } = {},
 ) {
+  if (isStaticWeb) {
+    throw new Error(
+      "Direct .DWG compilation requires local AutoCAD or the desktop app. On the web version, please click 'Download DXF' instead — it opens natively in AutoCAD with all layers, blocks, and alignments! To export direct .DWG, run the standalone FTTH-KMZ-to-CAD.exe desktop app.",
+    );
+  }
+
   let response: Response;
   try {
     response = await fetch("/api/convert-dwg", {
@@ -10148,9 +10156,9 @@ async function downloadDwg(
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    if (response.status === 404) {
+    if (response.status === 404 || response.status === 405) {
       throw new Error(
-        "DWG converter is unavailable on this page. Restart with npm run dev (or npm run serve) so /api/convert-dwg is active.",
+        "DWG converter backend is unavailable on this host. Please use 'Download DXF' (which opens directly in AutoCAD) or run the FTTH-KMZ-to-CAD.exe desktop app.",
       );
     }
     throw new Error(payload?.error || "AutoCAD could not create the DWG file.");
@@ -11444,12 +11452,37 @@ function App() {
                     <button
                       type="button"
                       className="primaryButton"
-                      style={{ background: napStandard.telcoProvider === "pldt" ? "#dc2626" : "#2563eb", borderColor: napStandard.telcoProvider === "pldt" ? "#dc2626" : "#2563eb" }}
-                      disabled={isConvertingNapDwg}
-                      onClick={() => void handleDownloadNapDwg()}
+                      style={{ background: "#059669", borderColor: "#059669" }}
+                      onClick={() => {
+                        downloadText(`${safeDownloadBase(napResult.fileName)}-hld-nap-${napStandard.telcoProvider}.dxf`, napResult.dxf);
+                        void logClientUsageEvent({
+                          event: "EXPORT_DXF",
+                          mode: "hld_nap",
+                          provider: napStandard.telcoProvider,
+                          fileName: napResult.fileName,
+                          itemCount: napResult.naps.length,
+                          summary: `Exported HLD NAP DXF (${napResult.naps.length} NAPs)`,
+                        });
+                      }}
                     >
                       <Download size={16} />
-                      {isConvertingNapDwg ? "Generating DWG..." : `Download ${napStandard.telcoProvider === "pldt" ? "PLDT" : "Globe"} DWG`}
+                      Download HLD DXF (AutoCAD Ready)
+                    </button>
+
+                    <button
+                      type="button"
+                      className={isStaticWeb ? "secondaryButton" : "primaryButton"}
+                      style={
+                        isStaticWeb
+                          ? undefined
+                          : { background: napStandard.telcoProvider === "pldt" ? "#dc2626" : "#2563eb", borderColor: napStandard.telcoProvider === "pldt" ? "#dc2626" : "#2563eb" }
+                      }
+                      disabled={isConvertingNapDwg}
+                      onClick={() => void handleDownloadNapDwg()}
+                      title={isStaticWeb ? "Direct .DWG requires local desktop app" : undefined}
+                    >
+                      <Download size={16} />
+                      {isConvertingNapDwg ? "Generating DWG..." : `Download ${napStandard.telcoProvider === "pldt" ? "PLDT" : "Globe"} DWG ${isStaticWeb ? "(Desktop App)" : ""}`}
                     </button>
 
                     <button
@@ -11975,47 +12008,93 @@ function App() {
                   </label>
                 </div>
 
-                {/* Primary Prominent Button: Download DWG */}
-                <button
-                  className="primaryCta"
-                  disabled={!result || isConvertingDwg}
-                  onClick={() => void handleDownloadDwg()}
-                >
-                  <Download size={20} />
-                  <span>{isConvertingDwg ? "Creating Native DWG..." : `Download ${isPldtProvider(telcoProvider) ? "PLDT" : "Globe"} DWG`}</span>
-                </button>
+                {/* Primary Prominent Button: On static web, Download DXF is the primary direct export; DWG requires desktop app */}
+                {isStaticWeb ? (
+                  <>
+                    <button
+                      className="primaryCta"
+                      disabled={!result}
+                      onClick={() => {
+                        if (!result) return;
+                        downloadText(`${safeDownloadBase(result.fileName)}-${isPldtProvider(telcoProvider) ? "pldt" : "globe"}-template.dxf`, result.dxf);
+                        void logClientUsageEvent({
+                          event: "EXPORT_DXF",
+                          mode: "pole_survey",
+                          provider: telcoProvider,
+                          fileName: result.fileName,
+                          itemCount: result.placemarks.length,
+                          summary: `Exported Pole Survey DXF (${result.placemarks.length} objects)`,
+                        });
+                      }}
+                    >
+                      <Download size={20} />
+                      <span>{`Download ${isPldtProvider(telcoProvider) ? "PLDT" : "Globe"} DXF (AutoCAD Ready)`}</span>
+                    </button>
 
-                {/* Secondary Button Row */}
-                <div className="secondaryButtonGroup">
-                  <button
-                    className="secondary"
-                    disabled={!result}
-                    onClick={() => {
-                      if (!result) return;
-                      downloadText(`${safeDownloadBase(result.fileName)}-${isPldtProvider(telcoProvider) ? "pldt" : "globe"}-template.dxf`, result.dxf);
-                      void logClientUsageEvent({
-                        event: "EXPORT_DXF",
-                        mode: "pole_survey",
-                        provider: telcoProvider,
-                        fileName: result.fileName,
-                        itemCount: result.placemarks.length,
-                        summary: `Exported Pole Survey DXF (${result.placemarks.length} objects)`,
-                      });
-                    }}
-                  >
-                    <FileText size={16} />
-                    Download DXF
-                  </button>
+                    <div className="secondaryButtonGroup">
+                      <button
+                        className="secondary"
+                        disabled={!result || isConvertingDwg}
+                        onClick={() => void handleDownloadDwg()}
+                        title="Direct .DWG export requires local AutoCAD or FTTH-KMZ-to-CAD.exe desktop app"
+                      >
+                        <FileText size={16} />
+                        <span>{isConvertingDwg ? "Creating..." : "Download DWG (Desktop App)"}</span>
+                      </button>
 
-                  <button
-                    className="secondary"
-                    disabled={!result || isFetchingRoads}
-                    onClick={() => void handleFetchRoads()}
-                  >
-                    <Route size={16} />
-                    {isFetchingRoads ? "Fetching roads..." : "Add OSM Roads"}
-                  </button>
-                </div>
+                      <button
+                        className="secondary"
+                        disabled={!result || isFetchingRoads}
+                        onClick={() => void handleFetchRoads()}
+                      >
+                        <Route size={16} />
+                        {isFetchingRoads ? "Fetching roads..." : "Add OSM Roads"}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="primaryCta"
+                      disabled={!result || isConvertingDwg}
+                      onClick={() => void handleDownloadDwg()}
+                    >
+                      <Download size={20} />
+                      <span>{isConvertingDwg ? "Creating Native DWG..." : `Download ${isPldtProvider(telcoProvider) ? "PLDT" : "Globe"} DWG`}</span>
+                    </button>
+
+                    <div className="secondaryButtonGroup">
+                      <button
+                        className="secondary"
+                        disabled={!result}
+                        onClick={() => {
+                          if (!result) return;
+                          downloadText(`${safeDownloadBase(result.fileName)}-${isPldtProvider(telcoProvider) ? "pldt" : "globe"}-template.dxf`, result.dxf);
+                          void logClientUsageEvent({
+                            event: "EXPORT_DXF",
+                            mode: "pole_survey",
+                            provider: telcoProvider,
+                            fileName: result.fileName,
+                            itemCount: result.placemarks.length,
+                            summary: `Exported Pole Survey DXF (${result.placemarks.length} objects)`,
+                          });
+                        }}
+                      >
+                        <FileText size={16} />
+                        Download DXF
+                      </button>
+
+                      <button
+                        className="secondary"
+                        disabled={!result || isFetchingRoads}
+                        onClick={() => void handleFetchRoads()}
+                      >
+                        <Route size={16} />
+                        {isFetchingRoads ? "Fetching roads..." : "Add OSM Roads"}
+                      </button>
+                    </div>
+                  </>
+                )}
 
                 {osmMessage && <p className="notice">{osmMessage}</p>}
 
@@ -12059,7 +12138,7 @@ function App() {
                 </p>
                 <button className="primaryCta" disabled>
                   <Download size={20} />
-                  <span>Download AutoCAD DWG</span>
+                  <span>{isStaticWeb ? "Download AutoCAD DXF" : "Download AutoCAD DWG"}</span>
                 </button>
               </div>
             )}
