@@ -1,0 +1,4325 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html lang="en-US" xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-US">
+<head profile="http://www.w3.org/2000/08/w3c-synd/#">
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+<script type='text/javascript'>//<![CDATA[
+/*
+ */
+
+function hoveron(elem) {
+    elem.className += ' mouse_over';
+}
+function hoveroff(elem) {
+    elem.className = elem.className.replace('mouse_over', '');
+}
+function toggleitem(id) {
+    var elem;
+    var elem_heading;
+
+    elem = document.getElementById(id);
+	try {
+		elem_heading = document.getElementById(id + "_heading");
+	} catch (err) {
+		elem_heading = null;
+	}
+
+    if (elem.className.match('_on') != null) {
+        elem.className = elem.className.replace('_on', '_off');
+		if (elem_heading != null) {
+        	elem_heading.className = elem_heading.className.replace('_on', '_off');
+		}
+    } else if (elem.className.match('_off') != null) {
+        elem.className = elem.className.replace('_off', '_on');
+		if (elem_heading != null) {
+			elem_heading.className = elem_heading.className.replace('_off', '_on');
+		}
+    }
+}
+
+function getURLVar(urlVarName) {
+	//divide the URL in half at the '?'
+	var urlBrowser;
+	var urlFull;
+	var urlHalves;
+	var urlVarValue = '';
+
+	try {
+		urlBrowser = String(document.location);
+		urlFull = urlBrowser.replace(/%26/g, "&");
+		urlHalves = urlFull.split('?');
+
+		if(urlHalves[1]){
+			//load all the name/value pairs into an array
+			var urlVars = urlHalves[1].split('&');
+			//loop over the list, and find the specified url variable
+			for(i=0; i<=(urlVars.length); i++){
+				if(urlVars[i]){
+					//load the name/value pair into an array
+					var urlVarPair = urlVars[i].split('=');
+					if (urlVarPair[0] && urlVarPair[0] == urlVarName) {
+						//I found a variable that matches, load it's value into the return variable
+						urlVarValue = urlVarPair[1];
+					}
+				}
+			}
+		}
+	} catch (err) {
+		alert("Javascript error in getURLVar()\nRequested Variable: " + urlVarName + "\rURL: " + urlFull + "\r\rError was: " + err.name + "\rMessage: " + err.message);
+	}
+	return urlVarValue.replace(/%20/g, ' ');
+}
+
+function showObjectProperties(obj) {
+	var str=""; //variable which will hold property values
+	str += "Object Properties:\n";
+	try {
+		for(prop in obj) {
+			try {
+				if (prop.substr(0, 3) == "get") {
+					str += "  " + prop + " = " + obj[prop]() + "\n";
+				} else {
+					str += "  " + prop + " = " + obj[prop] + "\n";
+				}
+			} catch (err) {
+				str += "  " + prop + "\n";
+			}
+		}
+		alert(str);
+	} catch (err) {
+		alert(err.name + ": " + err.message);
+	}
+}
+
+/**
+ * Returns the class name of the argument or undefined if 
+ * it's not a valid JavaScript object.
+ *
+ * From http://magnetiq.com/2006/07/10/finding-out-class-names-of-javascript-objects/
+ */  
+function getObjectClass(obj) {  
+    if (obj && obj.constructor && obj.constructor.toString) {  
+        var arr = obj.constructor.toString().match(  
+            /function\s*(\w+)/);  
+  
+        if (arr && arr.length == 2) {  
+            return arr[1];  
+        }  
+    }  
+  
+    return undefined;  
+}
+
+function getPageXYFromEvent(evt) {
+
+	if (!evt.pageX) {
+		pageX = document.body.scrollLeft + evt.clientX;
+		pageY = document.body.scrollTop + evt.clientY;
+	} else {
+		pageX = evt.pageX;
+		pageY = evt.pageY;
+	}
+
+	return [pageX, pageY];
+}
+
+//]]></script>
+<script type='text/javascript'>//<![CDATA[
+/*
+ */
+
+// Variable spatialnetLoaded can be used to check if we're running inside a spatialnet session.
+var spatialnetLoaded = false;
+try {
+	if (window.external.spatialnet != null) {
+		spatialnetLoaded = true;
+	}
+} catch (err) {}
+
+var spatialnetDebuggingEnabled = false;
+try {
+	if (spatialnetLoaded) {
+		if (window.external.service("get_env_var", "htmlpage_debugging") != '') {
+			spatialnetDebuggingEnabled = true;
+		} else if (window.external.service("gdm$get_debug_level", "htmlpage_debugging") > 0) { // We do this as a seperate if statement in case it throws
+			spatialnetDebuggingEnabled = true;
+		}
+	}
+} catch (err) {}
+
+if (spatialnetDebuggingEnabled) {
+	try {
+		if (window.external.service("gdm$get_debug_level", "htmlpage_debugging") > 5) {
+			alert("Attach Debugger Now");
+		}
+	} catch (err) {}
+}
+
+var scriptDebuggingEnabled = false;
+try {
+	Debug.WriteLine("Script Debugging Enabled!");
+	scriptDebuggingEnabled = true;
+} catch (err) {}
+
+function snetBreakpoint() {
+	try {
+		if (scriptDebuggingEnabled) {
+			debugger;
+		}
+	} catch (err2) {}
+}
+
+function snetGetErrorCode(err) {
+	var result;
+	try {
+		result = (err.message.substring(1, 8) * 1);
+		return result;
+	} catch (err2) {
+		return null;
+	}
+}
+
+function snetJavascriptError(fn, err) {
+	var text_js = "Javascript error in function \"" + fn + "\".\r Error: " + err.name + "\r Message: " + err.description;
+	var text_c = "Javascript error in function \"" + fn + "\".\n Error: " + err.name + "\n Message: " + err.description;
+	try {
+		if (spatialnetDebuggingEnabled) {
+			window.external.dprint(text_c);
+		}
+		if (scriptDebuggingEnabled) {
+			Debug.WriteLine(text_c);
+			debugger;
+		}
+		alert(text_js);
+	} catch (err2) {}
+}
+
+function snetDebug(text) {
+	try {
+		if (spatialnetDebuggingEnabled) {
+			window.external.dprint(text);
+		}
+		if (scriptDebuggingEnabled) {
+			Debug.WriteLine(text);
+		}
+	} catch (err) {
+		snetJavascriptError("snetDebug", err);
+	}
+}
+
+// Dynamically evaluate the given function
+function snetDynamicEval(fn, args) {
+	if (spatialnetLoaded) {
+		try {
+			var callstr = "";
+			for (var arg_iter = 0; arg_iter < args.length; arg_iter++) {
+				callstr += "args[" + arg_iter + "]";
+				if(arg_iter < args.length - 1) {
+					callstr += ',';
+				}
+			}
+			return eval(fn + "(" + callstr + ")");
+		} catch (err) {
+			alert(err.description);
+		}
+	} else {
+		alert ("Cannot perform that operation, SPATIALnet is not loaded.");
+	}
+}
+
+
+// Call simple settings
+function snetSettings(cls, behaviour, name) {
+	return snetDynamicEval("window.external.settings", snetSettings.arguments);
+}
+
+// Call simple service
+function snetService(name) {
+	return snetDynamicEval("window.external.service", snetService.arguments);
+}
+
+// Get a parameter
+function snetParameter(cls, behaviour, name) {
+	return snetDynamicEval("window.external.parameter", snetParameter.arguments);
+}
+
+// Run a service on the picker we reside in.
+function snetPickerService(name) {
+	return snetDynamicEval("window.external.pickerservice", snetPickerService.arguments);
+}
+
+// Get an editbuffer
+function snetEditbuffer(name) {
+	return snetDynamicEval("window.external.editbuffer", snetEditbuffer.arguments);
+}
+
+// Get an attribute
+function snetAttribute(entity, name) {
+	return snetDynamicEval("window.external.attribute", snetAttribute.arguments);
+}
+
+// Ridiculous function that ignores the value of whatever you pass it.
+// We use this to ignore the results of settings etc so they can be put behind hyperlinks.
+function snetIgnoreResult(value) {
+}
+
+// Some common things we do
+function snetEdit(entity) {
+	//snetService("gdm$button", entity, "edit");
+
+	// Ahhh
+	// need to make sure this happens as a command as set context will reorder
+	// the panel initialisation - this breaks extra attr config as the attr
+	// load happens out of synch
+	snetService("gdm$set_selection",entity);
+	snetService("gdm$execute_command","gdm$button [GDM_SELECTED_ENTITY] edit");
+}
+function snetDetails(entity) {
+	snetService("gdm$button", entity, "details");
+}
+function snetBrowse(entity) {
+	snetService("gdm$button", entity, "browse");
+}
+function snetAdd(cls) {
+	snetService("gdm$button", cls, "new");
+}
+function snetSelect(entity) {
+	snetService("gdm$button", entity, "select");
+}
+function snetMapView(entity) {
+	snetService("gdm$button", entity, "map_view");
+}
+function snetZoomView(entity) {
+	// This doesn't work in the aspatial client, so give a nicer error message
+	if(snetEditbuffer("client_architecture") == "simple") {
+		alert("You cannot zoom to an entity in the Desktop Client.");
+		return;
+	}
+	
+	if(snetEditbuffer("VPM_ACTIVE_VIEW_TYPE") == null) {
+		alert("You cannot zoom to an entity since no views are open");
+		return;
+	}
+	
+	// This is what we would like to put:
+	// snetService("gdm$button", entity, "zoom_current_view");
+	// but currently it doesn't do what we want
+	// TODO: fix it
+	
+	var old_value = snetEditbuffer("gdm_current_selection");	
+
+	try {
+		snetService("eam$set_editbuffer", "gdm_current_selection", entity);
+		snetSettings("CLIENT_configuration", snetEditbuffer("client_architecture"), "apply_zoomto", entity);
+	}
+	finally {
+		snetService("eam$set_editbuffer", "gdm_current_selection", old_value);
+	}	
+}
+
+function snetDelete(entity) {
+	snetService("gdm$button", entity, "delete");
+}
+function snetList(cls) {
+	snetService("gdm$button", cls, "list_class");
+}
+
+function snetHelpCommand(cmd) {
+    window.external.settings("CLIENT_configuration","javascript","helpcommand",cmd)
+}
+//]]></script>
+<script type='text/javascript'>//<![CDATA[
+/*
+ */
+
+var __entity_popup_div__ = null;
+var __popup_id_gen__ = 0;
+
+function showEntityPopup(x, y, ent) {
+	
+	if(!spatialnetLoaded)return;
+
+	html = snetSettings(ent, "html", "get_popup_content", ent);
+
+	showPopup(x, y, html);
+}
+
+function showEntityPopupFromEvent(evt, ent) {
+	if(!spatialnetLoaded)return;
+
+	pt = getPageXYFromEvent(evt);
+
+	html = snetSettings(ent, "html", "get_popup_content", ent);
+
+	showPopup(pt[0], pt[1], html);
+}
+
+function showEntityPopupForElement(elem, ent) {
+	
+	if(!spatialnetLoaded)return;
+
+	html = snetSettings(ent, "html", "get_popup_content", ent);
+	showPopupForElement(elem, html);
+}
+
+function showEntityPopupById(id, ent) {
+	
+	if(!spatialnetLoaded)return;
+
+	html = snetSettings(ent, "html", "get_popup_content", ent);
+
+	showPopupById(id, html);
+}
+
+function showPopupById(id, html) {
+	var this_item = document.getElementById(id);
+	showPopupForElement(this_item, html);
+}
+
+function showPopupForElement(elem, html) {
+
+	// Find position of bottom left corner of link clicked
+	var currleft = currtop = 0;
+	var obj = elem;
+
+	while(obj)
+	{
+		currleft += obj.offsetLeft;
+		currtop += obj.offsetTop;
+		obj = obj.offsetParent;
+	}
+
+	currleft += elem.offsetWidth / 2.0;
+	//currtop += elem.offsetHeight / 2.0;
+
+	showPopup(currleft, currtop, html);
+}
+
+function showPopup(x,y, html) {
+
+	if (!__entity_popup_div__) {
+		__entity_popup_div__ = document.createElement("div");
+		__entity_popup_div__.id = "palette";
+		__entity_popup_div__.className = "palette";
+		__entity_popup_div__.style.visibility = "hidden";
+		document.body.appendChild(__entity_popup_div__);
+	}
+	
+	__entity_popup_div__.innerHTML = html;
+	__entity_popup_div__.style.left = x + "px";
+	__entity_popup_div__.style.top = y - __entity_popup_div__.offsetHeight + "px";
+	__entity_popup_div__.style.visibility = "visible";
+}
+
+function hidePopup(){
+	if(!spatialnetLoaded || !__entity_popup_div__) return;
+	__entity_popup_div__.style.visibility = "hidden";
+}
+
+var __entitys_seen__ = new Object();
+
+function entity_popup_init() {
+	// only show these links in spatialnet
+	if(!spatialnetLoaded)return;
+
+	img = snetService("cmn$system_pathname_url", "torch.png", "html\\images");
+	var tables = document.getElementsByTagName("table");
+	for(var i=0; i<tables.length; i++){
+		sheet = tables[i];
+		if(!sheet.className.match(/\bshow_details\b/))
+			continue;
+
+		for(var j=0; j<sheet.rows.length; j++){
+			var item = sheet.rows[j];
+
+			var cell = document.createElement(
+				item.className.match("Title")?"th":"td"
+			);
+
+			cell.className = "cell item_image";
+			item.insertBefore(cell, item.firstChild);
+
+			if(item.id) {
+				id = item.id + "_button";
+
+				// the same item may be on the page multiple times. Give it a
+				// unique id
+				if(item.id in __entitys_seen__)
+					id += ++__entitys_seen__[item.id];
+				else
+					__entitys_seen__[item.id] = 1;
+
+				cell.innerHTML = (
+				"<a class=open_button id='"+id+
+				"' href='javascript:showEntityPopupById(\""
+				+id+"\", \"" + item.id + "\")'><img src='" + img + "'/></a>");
+			}
+			else if(item.className.match("Title"))
+				cell.innerHTML = "View";
+		}
+	}
+}
+
+function addEntityPopupBefore(elem, ent) {
+
+	if(!spatialnetLoaded)return;
+
+	anchor = document.createElement("a");
+	anchor.href = "#";
+	anchor.onclick = function (evt) {
+		showEntityPopupFromEvent(evt, ent);
+	};
+
+	elem.parentNode.insertBefore(anchor, elem);
+}
+
+function addEntityPopupHere(ent) {
+
+	if(!spatialnetLoaded)return;
+
+	img = snetService("cmn$system_pathname_url", "torch.png", "html\\images");
+
+	id = "__popup__" + __popup_id_gen__;
+	__popup_id_gen__++;
+
+	txt = "<a class=\"open_button\" id=\"" + id + "\" href='javascript:showEntityPopupById(\"" + id + "\", \"" + ent + "\")'><img src='" + img + "'/></a>";
+
+	document.write(txt);
+}
+
+function addPopupHere(link_text, content) {
+	id = "__popup__" + __popup_id_gen__;
+	__popup_id_gen__++;
+	txt = "<a class=\"open_button\" id=\"" + id + "\" href='javascript:showPopupById(\"" + id + "\", \"" + content + "\")'>" + link_text + "</a>";
+	document.write(txt);
+}
+
+function addEntityPopupAfter(elem, ent) {
+
+	if(!spatialnetLoaded)return;
+
+	anchor = document.createElement("a");
+	anchor.href = "#";
+	anchor.onclick = function (evt) {
+		showEntityPopupFromEvent(evt, ent);
+	};
+	next = elem.nextSibling;
+
+	if (!next) {
+		elem.parentNode.appendChild(anchor);
+	} else {
+		elem.parentNode.insertBefore(anchor, next);
+	}
+}
+//]]></script>
+</head>
+<body onclick="hidePopup(); hide_edit_popup_if_unchanged()" onresize="popup_size_and_position()">
+<style>
+/* Overall document rules */
+body {
+	font-family : verdana;
+	font-size : 10pt;
+}
+
+/* Headings */
+h1 {
+	font-size : 1.2em;
+}
+
+h2 {
+	font-size : 1.1em;
+}
+
+h3 {
+	font-size : 1.0em;
+}
+
+
+/* Tables */
+table {
+	border-collapse : collapse;
+}
+
+td {
+	border : 1px solid black;
+	padding : 2px;
+}
+
+th {
+	border : 1px solid black;
+	padding : 2px;
+}
+
+th.empty {
+	border :none;
+}
+
+.entity_on {
+	padding-left : 15px;
+}
+
+.entity_heading_on {
+	padding-left : 15px;
+	background-position : center left;
+	background-repeat : no-repeat;
+	background-image: url("../images/minus.gif");
+}
+
+.entity_off {
+	display : none;
+}
+
+.entity_heading_off {
+	padding-left : 15px;
+	background-position : center left;
+	background-repeat : no-repeat;
+	background-image : url("../images/plus.gif");
+}
+
+a.toggle {
+	text-decoration : none;
+	color : black;
+}
+
+a.toggle:hover {
+	text-decoration : underline;
+}
+
+a.toggle:visited {
+	color : black;
+}
+</style>
+<style>
+table {
+	font-family : verdana;
+	font-size : 10pt;
+}
+
+th {
+	background-color : #cccccc;
+}
+
+tr.even_row {
+	background-color : #D6DBE6;
+}
+</style>
+<style>
+.palette {
+	position: absolute;
+	display: block;
+	background-color: #eeeeee;
+	padding: 6;
+	border: 1px solid black;	
+	z-index: 1;
+}
+
+.open_button {
+	vertical-align : middle;
+}
+
+.open_button img{
+	margin : 4px;
+	border : none;
+
+}
+
+</style>
+<style>
+
+.cs_colour_categories td {
+	padding: 5px;
+}
+
+.port_number_margins {
+	font-weight: bold;
+	border: 0;
+}
+.port_number {
+	background-color: black;
+	color: white;
+}
+
+.noborderbottom {
+	border-bottom: 0;
+}
+
+.nobordertop {
+	border-top: 0;
+}
+
+.editable {
+	padding: 0px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+.editable .field-tooltip {
+	/* our field tooltip hint is only used when hovering over empty cell, turn it off by default */
+	display: none;
+}
+.editable.empty:hover .field-tooltip {
+	/* when empty/hovered, display and give text in italics */
+	display: block;
+	font-style: italic;
+}
+.editable.empty:hover .content {
+	/* when hovering and showing field tooltip, don't show empty content row */
+	display: none;
+}
+.editable:hover {
+	background-color: lightblue !important;
+}
+
+table.odfedit td {
+	text-align: center;
+}
+
+form {
+	/* don't display forms until we are editing one */
+	display: none;
+}
+
+form div.fieldtitle {
+	font-weight: bold;
+}
+
+body.editing form.editing {
+	display: block;
+	position: absolute;
+	background: white;
+	padding: 5px;
+	border: 1px #888 solid;
+}
+
+body.editing .edit-buttons {
+	/* this is for the tick/cross buttons, they align right */
+	text-align: right;
+}
+body.editing .edit-buttons > button {
+	margin-top: 5px;
+	margin-left: 5px;
+}
+
+body.editing td.editable {
+	/* when we are editing, grey out all the other boxes to indicate the modal
+	 * nature of the edit */
+	background-color: #aaa;
+}
+
+	.usage_description.circuit_state_A {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_A {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_C {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_C {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_B {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_B {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_D {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_D {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_G {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_G {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_F {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_F {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_H {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_H {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_J {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_J {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_L {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_L {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_O {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_O {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_N {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_N {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_P {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_P {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_S {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_S {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_R {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_R {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_U {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_U {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_T {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_T {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_V {
+		background-color: #d9ead3;
+	}
+	body.editing td.editable.usage_description.circuit_state_V {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #909c8c;
+	}
+
+	.usage_description.circuit_state_Y {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_Y {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_X {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_X {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_Z {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_Z {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_a {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_a {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_b {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_b {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_e {
+		background-color: #e6b8af;
+	}
+	body.editing td.editable.usage_description.circuit_state_e {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #997a74;
+	}
+
+	.usage_description.circuit_state_d {
+		background-color: #ffff00;
+	}
+	body.editing td.editable.usage_description.circuit_state_d {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaa00;
+	}
+
+	.usage_description.circuit_state_k {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_k {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_j {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_j {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_m {
+		background-color: #8e7cc3;
+	}
+	body.editing td.editable.usage_description.circuit_state_m {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #5e5282;
+	}
+
+	.usage_description.circuit_state_l {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_l {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_n {
+		background-color: #ff0000;
+	}
+	body.editing td.editable.usage_description.circuit_state_n {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aa0000;
+	}
+
+	.usage_description.circuit_state_p {
+		background-color: #ffa500;
+	}
+	body.editing td.editable.usage_description.circuit_state_p {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aa6e00;
+	}
+
+	.usage_description.circuit_state_s {
+		background-color: #b7b7b7;
+	}
+	body.editing td.editable.usage_description.circuit_state_s {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #7a7a7a;
+	}
+
+	.usage_description.circuit_state_r {
+		background-color: #00ffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_r {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #00aaaa;
+	}
+
+	.usage_description.circuit_state_u {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_u {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_t {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_t {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}
+
+	.usage_description.circuit_state_w {
+		background-color: #6aa84f;
+	}
+	body.editing td.editable.usage_description.circuit_state_w {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #467034;
+	}
+
+	.usage_description.circuit_state_v {
+		background-color: #ffffff;
+	}
+	body.editing td.editable.usage_description.circuit_state_v {
+		/* we use #aaa; for white cells which is 2/3 of the way from black->white
+		so this value is 2/3 of each of the RGB components */
+		background-color: #aaaaaa;
+	}</style>
+<script type='text/javascript'>//<![CDATA[
+
+var isEditing = null;
+var activeForm = null;
+var isPulldown = null;
+var inputWidget = null;
+var initialValue = null;
+function stopClickPropagating(event) {
+	// kill the entity torch popup if any
+	hidePopup();
+
+	//IE9 & Other Browsers
+	if (event.stopPropagation) {
+	  event.stopPropagation();
+	}
+	//IE8 and Lower
+	else {
+	  event.cancelBubble = true;
+	}
+
+}
+
+function portclicked(item, event) {
+	if (isEditing) {
+		return;
+	}
+
+	stopClickPropagating(event);
+
+	// make HTML form go grey
+	document.body.className += " editing";
+
+	var error = snetService("globe_odf_edit_port", item.getAttribute("data-entity-class"), item.getAttribute("data-entity-key"), item.getAttribute("data-port-number"));
+
+	// error handling
+	if (error == "USER_CANCELLED") {
+		remove_editing_class(document.body);
+		return false;
+
+	} else if (error != null) {
+		snetService("gui$show_warning_message", error);
+		remove_editing_class(document.body);
+		return false;
+	}
+
+	// refresh details for the edited Port
+	update_port_info(item.getAttribute("data-port-number"));
+
+	// HTML form back to white
+	remove_editing_class(document.body);
+
+}
+
+function clicked(item, event) {
+	if (isEditing) {
+		return;
+	}
+
+	stopClickPropagating(event);
+
+	item.className += " editing";
+	isEditing = item;
+	document.body.className += " editing";
+
+	var form = document.getElementById("form_" + item.id);
+	activeForm = form;
+	form.className += " editing";
+	var selects = form.getElementsByTagName("select");
+	isPulldown = selects.length > 0;
+	if (isPulldown) {
+		var select = selects[0];
+		inputWidget = select;
+		initialValue = select.value = inputWidget.getAttribute("pulldown-value");
+		inputWidget.style.width = '100%';
+	} else {
+		var input = form.getElementsByTagName("input")[0];
+		inputWidget = input;
+		initialValue = input.value;
+	}
+	popup_size_and_position();
+	input_changed();
+	inputWidget.focus();
+}
+
+function popup_size_and_position() {
+	if (activeForm == null) {
+		return;
+	}
+	var formPadding = 5;
+
+	// Now we have the port numbers in the wings, we have extra space on the
+	// sides without bumping into the edge of the page.
+	// As our pulldowns in particular are often wider than our rows, use some
+	// of the extra space - 20px on each side
+	var extraWidth = 20;
+
+	activeForm.style.left = "0";
+	activeForm.style.left = (isEditing.getClientRects()[0].left	 + isEditing.style.padding - activeForm.getClientRects()[0].left - formPadding - extraWidth) + "px";
+	activeForm.style.top = "0"
+	activeForm.style.top = (isEditing.getClientRects()[0].top + isEditing.style.padding - activeForm.getClientRects()[0].top) + "px";
+	var rect = isEditing.getClientRects()[0];
+	var width = rect.right - rect.left + extraWidth*2;
+	activeForm.style.width = (width - 1) + "px";
+	if (isPulldown) {
+		inputWidget.style.width = '100%';
+	} else {
+		inputWidget.style.width = (width - formPadding) + "px";
+	}
+}
+
+
+function accept_changes() {
+
+	if (spatialnetLoaded) {
+		var error = snetService("globe_odf_edit_apply",
+			isEditing.getAttribute("data-entity"),
+			isEditing.getAttribute("data-port-number"),
+			isEditing.getAttribute("data-attribute"),
+			// don't let undefined go back if empty string...
+			inputWidget.value || '');
+		if (error != null) {
+			snetService("gui$show_warning_message", error);
+			return false;
+		}
+
+	}
+	var content = isEditing.children[0];
+	var text;
+	if (isPulldown) {
+		text = inputWidget.children[inputWidget.selectedIndex].text;
+		inputWidget.setAttribute("pulldown-value", inputWidget.value);
+	} else {
+		text = inputWidget.value;
+	}
+
+	if (text) {
+		content.innerText = text;
+		// unmark as empty
+		isEditing.className = isEditing.className.replace(/(?:^|\s)empty(?!\S)/, '');
+	} else {
+		content.innerHTML = '&nbsp;';
+		// mark as empty so field tooltip shows on hover
+		if (!isEditing.className.match(/(?:^|\s)empty(?!\S)/, '')) {
+			isEditing.className = isEditing.className + " empty";
+		}
+	}
+
+	/* update our circuit state class when we change circuit state */
+	if (isEditing.className.match(/(?:^|\s)circuit_state(?!\S)/)) {
+		isEditing.className = isEditing.className.replace( /circuit_state_\w(?!\S)/g , 'circuit_state_' + inputWidget.value);
+		var usageDesc = document.getElementById(isEditing.getAttribute("data-usage-desc-id"));
+		usageDesc.className = usageDesc.className.replace( /circuit_state_\w(?!\S)/g , 'circuit_state_' + inputWidget.value);
+		var portName = document.getElementById(isEditing.getAttribute("data-port-name-id"));
+		portName.className = portName.className.replace( /circuit_state_\w(?!\S)/g , 'circuit_state_' + inputWidget.value);
+
+	}
+
+	/* and update utilisation / last edit user/date - calls back into spatialNET so we require spatialNET to do this
+	   this will run more than we need but its just easier to run it all every time to get the edit user/date updated */
+	if (spatialnetLoaded) {
+		update_utilisation();
+	}
+
+	clear_editing();
+	return false;
+}
+
+
+//
+// Called by TermPGR and CablePGR percentage update
+// For TermPGR only, update some TermPanel extra attrs
+//
+function update_utilisation() {
+	var elements = document.getElementsByTagName("*");
+	for (var i = 0; i < elements.length; i++) {
+		/* we only have a single classname on these, take a shortcut
+		 * rather than splitting... */
+		var el = elements[i];
+		var c = el.className;
+		if (c.indexOf("recompute-utilisation")==0) {
+
+			var result = snetService("globe_odf_calculate_pgr_attribute",
+				el.getAttribute("data-entity"),
+				el.getAttribute("data-circuit-owner"),
+				c
+			);
+			el.innerText = result;
+
+			/* write percentage to termpanel*/
+			if (c.indexOf("recompute-utilisation-percentage")==0) {
+				var result2 = snetService("globe_odf_write_port_utilisation",
+					el.getAttribute("data-circuit-owner"),
+					result
+				);
+			}
+		}
+	}
+}
+
+
+// update the HTML with the new Port values
+// this coulld be improved by using getElementById for all fields we need to update
+//
+function update_port_info(port_number) {
+	var elements = document.getElementsByTagName("*");
+	for (var i = 0; i < elements.length; i++) {
+		var el = elements[i];
+		var pn = el.getAttribute("data-port-number");
+
+		if (pn==port_number) {
+			var attr = el.getAttribute("data-attribute");
+
+			if (attr !== null) {
+				var ent = el.getAttribute("data-entity");
+				var result = snetService("globe_odf_calculate_port_attribute",ent,port_number,attr);
+
+				// update the hidden edit form with the new value
+				var form = document.getElementById("form_" + el.id);
+				var selects = form.getElementsByTagName("select");
+				var text = result;
+				isPulldown = selects.length > 0;
+				if (isPulldown) {
+					var select = selects[0];
+					for (var j=0; j < select.options.length; j++) {
+						var option = select.options[j];
+						if (option.value == result)
+						{
+							// Use the pulldown text to display on the panel
+							text = option.text;
+
+							// update hidden form value to the given value
+							select.value = option.value;
+						}
+					}
+
+					inputWidget = select;
+					inputWidget.setAttribute("pulldown-value",result);
+				} else {
+					var input = form.getElementsByTagName("input")[0];
+					input.value = result;
+					inputWidget = input;
+				}
+
+				var content = el.children[0];
+				if (text) {
+					content.innerText = text;
+					// unmark as empty
+					el.className = el.className.replace(/(?:^|\s)empty(?!\S)/, '');
+				} else {
+					content.innerHTML = '&nbsp;';
+					// mark as empty so field tooltip shows on hover
+					if (!el.className.match(/(?:^|\s)empty(?!\S)/, '')) {
+						el.className = el.className + " empty";
+					}
+				}
+				// update our circuit state class when we change circuit state
+				// this changes the color of the fields
+				if (attr == "ndm_cs_state") {
+					el.className = el.className.replace( /circuit_state_\w(?!\S)/g , 'circuit_state_' + result);
+					var usageDesc = document.getElementById(el.getAttribute("data-usage-desc-id"));
+					usageDesc.className = usageDesc.className.replace( /circuit_state_\w(?!\S)/g , 'circuit_state_' + result);
+					var portName = document.getElementById(el.getAttribute("data-port-name-id"));
+					portName.className = portName.className.replace( /circuit_state_\w(?!\S)/g , 'circuit_state_' + result);
+
+					// and update utilisation - calls back into spatialNET so we require spatialNET to do this
+					if (spatialnetLoaded) {
+						update_utilisation();
+					}
+				}
+			}
+		}
+	}
+}
+
+function reject_changes() {
+	inputWidget.value = initialValue;
+	clear_editing();
+	return false;
+}
+
+function form_unchanged() {
+	return (inputWidget.value === initialValue);
+}
+
+function input_changed() {
+	if (activeForm == null) {
+		// might have gone away before timeout up if enter pressed
+		return;
+	}
+
+	// sigh, our IE doesn't have getElementsByClassName
+	var elems = activeForm.getElementsByTagName("button");
+	for (var i=0; i < elems.length; i++) {
+		var elem = elems[i];
+		if (elem.className == "accept-button") {
+			elem.disabled = form_unchanged();
+			return;
+		}
+	}
+}
+
+function hide_edit_popup_if_unchanged() {
+	if (activeForm != null) {
+		if (form_unchanged()) {
+			reject_changes();
+		} else {
+			inputWidget.focus();
+		}
+	}
+}
+
+function remove_editing_class(elem) {
+	elem.className = elem.className.replace( /(?:^|\s)editing(?!\S)/g , '');
+}
+
+function clear_editing() {
+	remove_editing_class(isEditing);
+	remove_editing_class(document.body);
+	remove_editing_class(activeForm);
+	isEditing = null;
+	initialValue = null;
+	inputWidget = null;
+	activeForm = null;
+}
+//]]></script>
+<h2>
+TCR_002_SECTOR_02_PANEL_02 (ODF 72)</h2>
+<table style="margin-left:22px; width: 95%;" class="cs_colour_categories">
+<tr>
+<td style="width: 90px; text-align: left;">ODF Name:</td>
+<td style="width: 300px; min-width: 50px; text-align: left;">TCR_002_SECTOR_02_PANEL_02</td>
+<td style="border-top: None; border-bottom: None; width: 5%;"></td>
+<td style="width: 180px; text-align: left;">Location:</td>
+<td style="width: 300px; min-width: 50px; text-align: left;"></td>
+<td style="border-top: None; border-bottom: None; width: 20%;"></td>
+<td style="white-space: nowrap; width: 110px; min-width: 110px; max-width: 110px; text-align: left;">Last edit User:</td>
+<td style="min-width: 100px; width: 300px;" class="recompute-utilisation-lastedituser">Ortouste, Joanna Jane P. (zwfi0033)</td>
+</tr>
+<tr>
+<td style="text-align: left;">ODF Type:</td>
+<td style="text-align: left;">ODF 72</td>
+<td style="border-top: None; border-bottom: None; width: 5%;"></td>
+<td style="width: 180px; text-align: left;">Site Name:</td>
+<td style="width: 300px; min-width: 50px; text-align: left;"></td>
+<td style="border-top: None; border-bottom: None;"></td>
+<td style="white-space: nowrap;">Last edit Date:</td>
+<td class="recompute-utilisation-lasteditdate"></td>
+</tr>
+<tr>
+<td style="text-align: left;">FDU Type:</td>
+<td style="text-align: left;"></td>
+<td style="border-top: None; border-bottom: None; width: 5%;"></td>
+<td style="width: 180px; text-align: left;">Segment Name (1):</td>
+<td style="width: 300px; min-width: 50px; text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;">Description:</td>
+<td style="text-align: left;"></td>
+<td style="border-top: None; border-bottom: None; width: 5%;"></td>
+<td style="width: 180px; text-align: left;">Segment Name (2):</td>
+<td style="width: 300px; min-width: 50px; text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left; white-space: nowrap;">ODF Status:</td>
+<td style="text-align: left;">InService</td>
+<td style="border-top: None; border-bottom: None; width: 5%;"></td>
+<td style="width: 180px; text-align: left;">Segment Name (3):</td>
+<td style="width: 300px; min-width: 50px; text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left; white-space: nowrap;">Project Name:</td>
+<td style="text-align: left;"></td>
+<td style="border-top: None; border-bottom: None; width: 5%;"></td>
+<td style="width: 180px; text-align: left;">PLA ID:</td>
+<td style="width: 300px; min-width: 50px; text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left; white-space: nowrap;">Length:</td>
+<td style="text-align: left;"></td>
+</tr>
+</table>
+<h3>
+Category Legend<br />
+</h3>
+<table style="margin-left: 22px; width: 95%;" class="cs_colour_categories">
+<tr>
+<td style="background-color: #6aa84f; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">      WIRELINE      </td>
+<td style="background-color: #e6b8af; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">         EG         </td>
+<td style="background-color: #00ffff; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">        CORE        </td>
+<td style="background-color: #ffff00; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">    DISTRIBUTION    </td>
+<td style="background-color: #ffa500; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">        POI         </td>
+<td style="background-color: #b7b7b7; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">       ACCESS       </td>
+<td style="background-color: #8e7cc3; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">       ONMSI        </td>
+<td style="background-color: #ff0000; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">      NO LABEL      </td>
+<td style="background-color: #d9ead3; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">      RESERVED      </td>
+<td style="background-color: #ffffff; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">  Vacant No Fiber   </td>
+<td style="background-color: #ffffff; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">    Vacant Good     </td>
+<td style="background-color: #ffffff; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">  Vacant Defective  </td>
+<td style="background-color: #ffffff; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">    Vacant Stump    </td>
+<td style="background-color: #ffffff; width: 80px; min-width: 100px; text-align: center; white-space: nowrap;">       OTHER        </td>
+<td style="text-align: center;">USED</td>
+<td style="text-align: center;">UTILIZATION</td>
+</tr>
+<tr>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-WIRELINE">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-EG">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-CORE">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-DISTRIBUTION">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-POI">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-ACCESS">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-ONMSI">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-NO LABEL">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-RESERVED">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-Vacant No Fiber">60</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-Vacant Good">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-Vacant Defective">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-Vacant Stump">0</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-OTHER">12</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-used">12</td>
+<td data-circuit-owner="{TERM_PORTGR,499362678}" data-entity="{BI_TERM_RACK,499362676}" style="text-align: center;" class="recompute-utilisation-percentage">16.67%</td>
+</tr>
+</table>
+<br />
+<h3>
+Port Details<br />
+</h3>
+<table class="odfedit">
+<tr>
+<td rowspan="8" class="port_number_margins">1</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content0" data-port-number="1" data-entity-class="TERM_PORTGR"><div class="content">
+1</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content1" data-port-number="2" data-entity-class="TERM_PORTGR"><div class="content">
+2</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content2" data-port-number="3" data-entity-class="TERM_PORTGR"><div class="content">
+3</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content3" data-port-number="4" data-entity-class="TERM_PORTGR"><div class="content">
+4</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content4" data-port-number="5" data-entity-class="TERM_PORTGR"><div class="content">
+5</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content5" data-port-number="6" data-entity-class="TERM_PORTGR"><div class="content">
+6</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content6" data-port-number="7" data-entity-class="TERM_PORTGR"><div class="content">
+7</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content7" data-port-number="8" data-entity-class="TERM_PORTGR"><div class="content">
+8</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content8" data-port-number="9" data-entity-class="TERM_PORTGR"><div class="content">
+9</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content9" data-port-number="10" data-entity-class="TERM_PORTGR"><div class="content">
+10</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content10" data-port-number="11" data-entity-class="TERM_PORTGR"><div class="content">
+11</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content11" data-port-number="12" data-entity-class="TERM_PORTGR"><div class="content">
+12</div>
+</td>
+<td rowspan="8" class="port_number_margins">12</td>
+</tr>
+<tr>
+<td data-usage-desc-id="499362678-1-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-1-portname" id="content12" data-port-number="1"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-2-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-2-portname" id="content13" data-port-number="2"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-3-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-3-portname" id="content14" data-port-number="3"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-4-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-4-portname" id="content15" data-port-number="4"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-5-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-5-portname" id="content16" data-port-number="5"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-6-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-6-portname" id="content17" data-port-number="6"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-7-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-7-portname" id="content18" data-port-number="7"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-8-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-8-portname" id="content19" data-port-number="8"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-9-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-9-portname" id="content20" data-port-number="9"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-10-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-10-portname" id="content21" data-port-number="10"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-11-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-11-portname" id="content22" data-port-number="11"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-12-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-12-portname" id="content23" data-port-number="12"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content24" data-port-number="1" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content25" data-port-number="2" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content26" data-port-number="3" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content27" data-port-number="4" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content28" data-port-number="5" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content29" data-port-number="6" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content30" data-port-number="7" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content31" data-port-number="8" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content32" data-port-number="9" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content33" data-port-number="10" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content34" data-port-number="11" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content35" data-port-number="12" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content36" data-port-number="1" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content37" data-port-number="2" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content38" data-port-number="3" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content39" data-port-number="4" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content40" data-port-number="5" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content41" data-port-number="6" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content42" data-port-number="7" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content43" data-port-number="8" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content44" data-port-number="9" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content45" data-port-number="10" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content46" data-port-number="11" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content47" data-port-number="12" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content48" data-port-number="1" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content49" data-port-number="2" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content50" data-port-number="3" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content51" data-port-number="4" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content52" data-port-number="5" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content53" data-port-number="6" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content54" data-port-number="7" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content55" data-port-number="8" class="nobordertop noborderbottom"><div class="content">
+70K FTTH 2021</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content56" data-port-number="9" class="nobordertop noborderbottom"><div class="content">
+70K FTTH 2021</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content57" data-port-number="10" class="nobordertop noborderbottom"><div class="content">
+70K FTTH 2021</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content58" data-port-number="11" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content59" data-port-number="12" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="1" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-1-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="2" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-2-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="3" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-3-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="4" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-4-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="5" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-5-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="6" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-6-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="7" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-7-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="8" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-8-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="9" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-9-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="10" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-10-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="11" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-11-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="12" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-12-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="1" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-1-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="2" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-2-usagedesc"><div class="content">
+TCR_002_L961 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="3" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-3-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="4" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-4-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="5" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-5-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="6" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-6-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="7" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-7-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="8" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-8-usagedesc"><div class="content">
+TCR_002_L966 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="9" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-9-usagedesc"><div class="content">
+TCR_002_L967 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="10" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-10-usagedesc"><div class="content">
+TCR_002_L968 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="11" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-11-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="12" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-12-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content60" data-port-number="1" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content61" data-port-number="2" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content62" data-port-number="3" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content63" data-port-number="4" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content64" data-port-number="5" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content65" data-port-number="6" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content66" data-port-number="7" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content67" data-port-number="8" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content68" data-port-number="9" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content69" data-port-number="10" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content70" data-port-number="11" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content71" data-port-number="12" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+</tr>
+<tr>
+<td rowspan="8" class="port_number_margins">13</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content72" data-port-number="13" data-entity-class="TERM_PORTGR"><div class="content">
+13</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content73" data-port-number="14" data-entity-class="TERM_PORTGR"><div class="content">
+14</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content74" data-port-number="15" data-entity-class="TERM_PORTGR"><div class="content">
+15</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content75" data-port-number="16" data-entity-class="TERM_PORTGR"><div class="content">
+16</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content76" data-port-number="17" data-entity-class="TERM_PORTGR"><div class="content">
+17</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content77" data-port-number="18" data-entity-class="TERM_PORTGR"><div class="content">
+18</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content78" data-port-number="19" data-entity-class="TERM_PORTGR"><div class="content">
+19</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content79" data-port-number="20" data-entity-class="TERM_PORTGR"><div class="content">
+20</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content80" data-port-number="21" data-entity-class="TERM_PORTGR"><div class="content">
+21</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content81" data-port-number="22" data-entity-class="TERM_PORTGR"><div class="content">
+22</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content82" data-port-number="23" data-entity-class="TERM_PORTGR"><div class="content">
+23</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content83" data-port-number="24" data-entity-class="TERM_PORTGR"><div class="content">
+24</div>
+</td>
+<td rowspan="8" class="port_number_margins">24</td>
+</tr>
+<tr>
+<td data-usage-desc-id="499362678-13-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-13-portname" id="content84" data-port-number="13"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-14-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-14-portname" id="content85" data-port-number="14"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-15-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-15-portname" id="content86" data-port-number="15"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-16-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-16-portname" id="content87" data-port-number="16"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-17-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-17-portname" id="content88" data-port-number="17"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-18-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-18-portname" id="content89" data-port-number="18"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-19-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-19-portname" id="content90" data-port-number="19"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-20-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-20-portname" id="content91" data-port-number="20"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-21-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-21-portname" id="content92" data-port-number="21"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-22-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-22-portname" id="content93" data-port-number="22"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-23-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-23-portname" id="content94" data-port-number="23"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-24-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-24-portname" id="content95" data-port-number="24"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content96" data-port-number="13" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content97" data-port-number="14" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content98" data-port-number="15" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content99" data-port-number="16" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content100" data-port-number="17" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content101" data-port-number="18" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content102" data-port-number="19" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content103" data-port-number="20" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content104" data-port-number="21" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content105" data-port-number="22" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content106" data-port-number="23" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content107" data-port-number="24" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content108" data-port-number="13" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content109" data-port-number="14" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content110" data-port-number="15" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content111" data-port-number="16" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content112" data-port-number="17" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content113" data-port-number="18" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content114" data-port-number="19" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content115" data-port-number="20" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content116" data-port-number="21" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content117" data-port-number="22" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content118" data-port-number="23" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content119" data-port-number="24" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content120" data-port-number="13" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content121" data-port-number="14" class="nobordertop noborderbottom"><div class="content">
+70K FTTH 2021</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content122" data-port-number="15" class="nobordertop noborderbottom"><div class="content">
+70K FTTH 2021</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content123" data-port-number="16" class="nobordertop noborderbottom"><div class="content">
+70K FTTH 2021</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content124" data-port-number="17" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content125" data-port-number="18" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content126" data-port-number="19" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content127" data-port-number="20" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content128" data-port-number="21" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content129" data-port-number="22" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content130" data-port-number="23" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content131" data-port-number="24" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="13" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-13-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="14" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-14-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="15" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-15-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="16" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-16-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="17" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-17-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="18" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-18-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="19" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-19-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="20" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-20-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="21" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-21-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="22" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-22-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="23" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-23-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="24" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-24-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="13" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-13-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="14" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-14-usagedesc"><div class="content">
+TCR_002_L971 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="15" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-15-usagedesc"><div class="content">
+TCR_002_L972 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="16" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-16-usagedesc"><div class="content">
+TCR_002_L973 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="17" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-17-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="18" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-18-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="19" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-19-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="20" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-20-usagedesc"><div class="content">
+TCR_002_L976 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="21" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-21-usagedesc"><div class="content">
+TCR_002_L977 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="22" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-22-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="23" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-23-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="24" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-24-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content132" data-port-number="13" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content133" data-port-number="14" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content134" data-port-number="15" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content135" data-port-number="16" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content136" data-port-number="17" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content137" data-port-number="18" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content138" data-port-number="19" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content139" data-port-number="20" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content140" data-port-number="21" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content141" data-port-number="22" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content142" data-port-number="23" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content143" data-port-number="24" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+</tr>
+<tr>
+<td rowspan="8" class="port_number_margins">25</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content144" data-port-number="25" data-entity-class="TERM_PORTGR"><div class="content">
+25</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content145" data-port-number="26" data-entity-class="TERM_PORTGR"><div class="content">
+26</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content146" data-port-number="27" data-entity-class="TERM_PORTGR"><div class="content">
+27</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content147" data-port-number="28" data-entity-class="TERM_PORTGR"><div class="content">
+28</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content148" data-port-number="29" data-entity-class="TERM_PORTGR"><div class="content">
+29</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content149" data-port-number="30" data-entity-class="TERM_PORTGR"><div class="content">
+30</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content150" data-port-number="31" data-entity-class="TERM_PORTGR"><div class="content">
+31</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content151" data-port-number="32" data-entity-class="TERM_PORTGR"><div class="content">
+32</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content152" data-port-number="33" data-entity-class="TERM_PORTGR"><div class="content">
+33</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content153" data-port-number="34" data-entity-class="TERM_PORTGR"><div class="content">
+34</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content154" data-port-number="35" data-entity-class="TERM_PORTGR"><div class="content">
+35</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content155" data-port-number="36" data-entity-class="TERM_PORTGR"><div class="content">
+36</div>
+</td>
+<td rowspan="8" class="port_number_margins">36</td>
+</tr>
+<tr>
+<td data-usage-desc-id="499362678-25-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-25-portname" id="content156" data-port-number="25"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-26-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-26-portname" id="content157" data-port-number="26"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-27-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-27-portname" id="content158" data-port-number="27"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-28-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-28-portname" id="content159" data-port-number="28"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-29-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-29-portname" id="content160" data-port-number="29"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-30-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-30-portname" id="content161" data-port-number="30"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-31-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-31-portname" id="content162" data-port-number="31"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-32-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-32-portname" id="content163" data-port-number="32"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-33-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-33-portname" id="content164" data-port-number="33"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-34-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-34-portname" id="content165" data-port-number="34"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-35-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-35-portname" id="content166" data-port-number="35"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-36-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-36-portname" id="content167" data-port-number="36"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content168" data-port-number="25" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content169" data-port-number="26" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content170" data-port-number="27" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content171" data-port-number="28" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content172" data-port-number="29" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content173" data-port-number="30" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content174" data-port-number="31" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content175" data-port-number="32" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content176" data-port-number="33" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content177" data-port-number="34" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content178" data-port-number="35" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content179" data-port-number="36" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content180" data-port-number="25" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content181" data-port-number="26" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content182" data-port-number="27" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content183" data-port-number="28" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content184" data-port-number="29" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content185" data-port-number="30" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content186" data-port-number="31" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content187" data-port-number="32" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content188" data-port-number="33" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content189" data-port-number="34" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content190" data-port-number="35" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content191" data-port-number="36" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content192" data-port-number="25" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content193" data-port-number="26" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content194" data-port-number="27" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content195" data-port-number="28" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content196" data-port-number="29" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content197" data-port-number="30" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content198" data-port-number="31" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content199" data-port-number="32" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content200" data-port-number="33" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content201" data-port-number="34" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content202" data-port-number="35" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content203" data-port-number="36" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="25" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-25-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="26" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-26-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="27" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-27-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="28" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-28-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="29" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-29-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="30" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-30-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="31" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-31-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="32" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-32-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="33" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-33-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="34" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-34-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="35" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-35-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="36" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-36-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="25" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-25-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="26" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-26-usagedesc"><div class="content">
+TCR_002_L981 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="27" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-27-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="28" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-28-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="29" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-29-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="30" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-30-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="31" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-31-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="32" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-32-usagedesc"><div class="content">
+TCR_002_L986 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="33" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-33-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="34" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-34-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="35" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-35-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="36" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-36-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content204" data-port-number="25" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content205" data-port-number="26" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content206" data-port-number="27" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content207" data-port-number="28" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content208" data-port-number="29" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content209" data-port-number="30" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content210" data-port-number="31" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content211" data-port-number="32" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content212" data-port-number="33" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content213" data-port-number="34" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content214" data-port-number="35" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content215" data-port-number="36" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+</tr>
+<tr>
+<td rowspan="8" class="port_number_margins">37</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content216" data-port-number="37" data-entity-class="TERM_PORTGR"><div class="content">
+37</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content217" data-port-number="38" data-entity-class="TERM_PORTGR"><div class="content">
+38</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content218" data-port-number="39" data-entity-class="TERM_PORTGR"><div class="content">
+39</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content219" data-port-number="40" data-entity-class="TERM_PORTGR"><div class="content">
+40</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content220" data-port-number="41" data-entity-class="TERM_PORTGR"><div class="content">
+41</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content221" data-port-number="42" data-entity-class="TERM_PORTGR"><div class="content">
+42</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content222" data-port-number="43" data-entity-class="TERM_PORTGR"><div class="content">
+43</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content223" data-port-number="44" data-entity-class="TERM_PORTGR"><div class="content">
+44</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content224" data-port-number="45" data-entity-class="TERM_PORTGR"><div class="content">
+45</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content225" data-port-number="46" data-entity-class="TERM_PORTGR"><div class="content">
+46</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content226" data-port-number="47" data-entity-class="TERM_PORTGR"><div class="content">
+47</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content227" data-port-number="48" data-entity-class="TERM_PORTGR"><div class="content">
+48</div>
+</td>
+<td rowspan="8" class="port_number_margins">48</td>
+</tr>
+<tr>
+<td data-usage-desc-id="499362678-37-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-37-portname" id="content228" data-port-number="37"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-38-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_b" data-port-name-id="499362678-38-portname" id="content229" data-port-number="38"><div class="content">
+Splitter In</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-39-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-39-portname" id="content230" data-port-number="39"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-40-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-40-portname" id="content231" data-port-number="40"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-41-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-41-portname" id="content232" data-port-number="41"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-42-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-42-portname" id="content233" data-port-number="42"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-43-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-43-portname" id="content234" data-port-number="43"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-44-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-44-portname" id="content235" data-port-number="44"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-45-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-45-portname" id="content236" data-port-number="45"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-46-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-46-portname" id="content237" data-port-number="46"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-47-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-47-portname" id="content238" data-port-number="47"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-48-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-48-portname" id="content239" data-port-number="48"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content240" data-port-number="37" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content241" data-port-number="38" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content242" data-port-number="39" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content243" data-port-number="40" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content244" data-port-number="41" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content245" data-port-number="42" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content246" data-port-number="43" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content247" data-port-number="44" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content248" data-port-number="45" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content249" data-port-number="46" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content250" data-port-number="47" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content251" data-port-number="48" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content252" data-port-number="37" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content253" data-port-number="38" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content254" data-port-number="39" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content255" data-port-number="40" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content256" data-port-number="41" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content257" data-port-number="42" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content258" data-port-number="43" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content259" data-port-number="44" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content260" data-port-number="45" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content261" data-port-number="46" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content262" data-port-number="47" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content263" data-port-number="48" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content264" data-port-number="37" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content265" data-port-number="38" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content266" data-port-number="39" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content267" data-port-number="40" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content268" data-port-number="41" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content269" data-port-number="42" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content270" data-port-number="43" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content271" data-port-number="44" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content272" data-port-number="45" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content273" data-port-number="46" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content274" data-port-number="47" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content275" data-port-number="48" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="37" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-37-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="38" class="nobordertop noborderbottom usage_description circuit_state_b empty" id="499362678-38-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="39" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-39-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="40" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-40-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="41" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-41-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="42" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-42-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="43" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-43-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="44" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-44-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="45" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-45-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="46" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-46-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="47" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-47-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="48" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-48-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="37" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-37-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="38" class="nobordertop noborderbottom usage_description circuit_state_b" id="499362678-38-usagedesc"><div class="content">
+TCR_002_L991 1 IN</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="39" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-39-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="40" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-40-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="41" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-41-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="42" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-42-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="43" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-43-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="44" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-44-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="45" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-45-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="46" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-46-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="47" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-47-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="48" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-48-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content276" data-port-number="37" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content277" data-port-number="38" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content278" data-port-number="39" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content279" data-port-number="40" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content280" data-port-number="41" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content281" data-port-number="42" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content282" data-port-number="43" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content283" data-port-number="44" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content284" data-port-number="45" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content285" data-port-number="46" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content286" data-port-number="47" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content287" data-port-number="48" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+</tr>
+<tr>
+<td rowspan="8" class="port_number_margins">49</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content288" data-port-number="49" data-entity-class="TERM_PORTGR"><div class="content">
+49</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content289" data-port-number="50" data-entity-class="TERM_PORTGR"><div class="content">
+50</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content290" data-port-number="51" data-entity-class="TERM_PORTGR"><div class="content">
+51</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content291" data-port-number="52" data-entity-class="TERM_PORTGR"><div class="content">
+52</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content292" data-port-number="53" data-entity-class="TERM_PORTGR"><div class="content">
+53</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content293" data-port-number="54" data-entity-class="TERM_PORTGR"><div class="content">
+54</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content294" data-port-number="55" data-entity-class="TERM_PORTGR"><div class="content">
+55</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content295" data-port-number="56" data-entity-class="TERM_PORTGR"><div class="content">
+56</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content296" data-port-number="57" data-entity-class="TERM_PORTGR"><div class="content">
+57</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content297" data-port-number="58" data-entity-class="TERM_PORTGR"><div class="content">
+58</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content298" data-port-number="59" data-entity-class="TERM_PORTGR"><div class="content">
+59</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content299" data-port-number="60" data-entity-class="TERM_PORTGR"><div class="content">
+60</div>
+</td>
+<td rowspan="8" class="port_number_margins">60</td>
+</tr>
+<tr>
+<td data-usage-desc-id="499362678-49-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-49-portname" id="content300" data-port-number="49"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-50-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-50-portname" id="content301" data-port-number="50"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-51-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-51-portname" id="content302" data-port-number="51"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-52-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-52-portname" id="content303" data-port-number="52"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-53-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-53-portname" id="content304" data-port-number="53"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-54-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-54-portname" id="content305" data-port-number="54"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-55-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-55-portname" id="content306" data-port-number="55"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-56-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-56-portname" id="content307" data-port-number="56"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-57-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-57-portname" id="content308" data-port-number="57"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-58-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-58-portname" id="content309" data-port-number="58"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-59-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-59-portname" id="content310" data-port-number="59"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-60-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-60-portname" id="content311" data-port-number="60"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content312" data-port-number="49" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content313" data-port-number="50" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content314" data-port-number="51" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content315" data-port-number="52" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content316" data-port-number="53" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content317" data-port-number="54" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content318" data-port-number="55" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content319" data-port-number="56" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content320" data-port-number="57" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content321" data-port-number="58" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content322" data-port-number="59" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content323" data-port-number="60" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content324" data-port-number="49" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content325" data-port-number="50" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content326" data-port-number="51" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content327" data-port-number="52" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content328" data-port-number="53" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content329" data-port-number="54" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content330" data-port-number="55" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content331" data-port-number="56" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content332" data-port-number="57" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content333" data-port-number="58" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content334" data-port-number="59" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content335" data-port-number="60" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content336" data-port-number="49" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content337" data-port-number="50" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content338" data-port-number="51" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content339" data-port-number="52" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content340" data-port-number="53" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content341" data-port-number="54" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content342" data-port-number="55" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content343" data-port-number="56" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content344" data-port-number="57" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content345" data-port-number="58" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content346" data-port-number="59" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content347" data-port-number="60" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="49" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-49-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="50" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-50-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="51" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-51-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="52" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-52-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="53" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-53-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="54" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-54-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="55" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-55-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="56" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-56-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="57" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-57-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="58" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-58-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="59" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-59-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="60" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-60-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="49" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-49-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="50" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-50-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="51" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-51-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="52" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-52-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="53" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-53-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="54" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-54-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="55" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-55-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="56" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-56-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="57" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-57-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="58" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-58-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="59" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-59-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="60" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-60-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content348" data-port-number="49" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content349" data-port-number="50" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content350" data-port-number="51" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content351" data-port-number="52" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content352" data-port-number="53" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content353" data-port-number="54" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content354" data-port-number="55" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content355" data-port-number="56" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content356" data-port-number="57" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content357" data-port-number="58" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content358" data-port-number="59" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content359" data-port-number="60" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+</tr>
+<tr>
+<td rowspan="8" class="port_number_margins">61</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content360" data-port-number="61" data-entity-class="TERM_PORTGR"><div class="content">
+61</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content361" data-port-number="62" data-entity-class="TERM_PORTGR"><div class="content">
+62</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content362" data-port-number="63" data-entity-class="TERM_PORTGR"><div class="content">
+63</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content363" data-port-number="64" data-entity-class="TERM_PORTGR"><div class="content">
+64</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content364" data-port-number="65" data-entity-class="TERM_PORTGR"><div class="content">
+65</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content365" data-port-number="66" data-entity-class="TERM_PORTGR"><div class="content">
+66</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content366" data-port-number="67" data-entity-class="TERM_PORTGR"><div class="content">
+67</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content367" data-port-number="68" data-entity-class="TERM_PORTGR"><div class="content">
+68</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content368" data-port-number="69" data-entity-class="TERM_PORTGR"><div class="content">
+69</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content369" data-port-number="70" data-entity-class="TERM_PORTGR"><div class="content">
+70</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content370" data-port-number="71" data-entity-class="TERM_PORTGR"><div class="content">
+71</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" class="port_number" data-entity-key="499362678" id="content371" data-port-number="72" data-entity-class="TERM_PORTGR"><div class="content">
+72</div>
+</td>
+<td rowspan="8" class="port_number_margins">72</td>
+</tr>
+<tr>
+<td data-usage-desc-id="499362678-61-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-61-portname" id="content372" data-port-number="61"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-62-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-62-portname" id="content373" data-port-number="62"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-63-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-63-portname" id="content374" data-port-number="63"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-64-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-64-portname" id="content375" data-port-number="64"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-65-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-65-portname" id="content376" data-port-number="65"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-66-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-66-portname" id="content377" data-port-number="66"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-67-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-67-portname" id="content378" data-port-number="67"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-68-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-68-portname" id="content379" data-port-number="68"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-69-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-69-portname" id="content380" data-port-number="69"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-70-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-70-portname" id="content381" data-port-number="70"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-71-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-71-portname" id="content382" data-port-number="71"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+<td data-usage-desc-id="499362678-72-usagedesc" data-entity="{TERM_PORTGR,499362678}" data-attribute="ndm_cs_state" class="nobordertop noborderbottom circuit_state circuit_state_S" data-port-name-id="499362678-72-portname" id="content383" data-port-number="72"><div class="content">
+Spare (dark)</div>
+<div class="field-tooltip">
+Usage</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content384" data-port-number="61" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content385" data-port-number="62" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content386" data-port-number="63" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content387" data-port-number="64" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content388" data-port-number="65" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content389" data-port-number="66" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content390" data-port-number="67" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content391" data-port-number="68" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content392" data-port-number="69" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content393" data-port-number="70" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content394" data-port-number="71" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.2" id="content395" data-port-number="72" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Length</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content396" data-port-number="61" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content397" data-port-number="62" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content398" data-port-number="63" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content399" data-port-number="64" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content400" data-port-number="65" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content401" data-port-number="66" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content402" data-port-number="67" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content403" data-port-number="68" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content404" data-port-number="69" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content405" data-port-number="70" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content406" data-port-number="71" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.3" id="content407" data-port-number="72" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Attn Loss</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content408" data-port-number="61" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content409" data-port-number="62" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content410" data-port-number="63" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content411" data-port-number="64" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content412" data-port-number="65" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content413" data-port-number="66" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content414" data-port-number="67" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content415" data-port-number="68" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content416" data-port-number="69" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content417" data-port-number="70" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content418" data-port-number="71" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.0" id="content419" data-port-number="72" class="nobordertop noborderbottom empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Project</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="61" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-61-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="62" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-62-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="63" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-63-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="64" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-64-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="65" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-65-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="66" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-66-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="67" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-67-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="68" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-68-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="69" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-69-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="70" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-70-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="71" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-71-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_term_port_location" data-port-number="72" class="nobordertop noborderbottom usage_description circuit_state_S empty" id="499362678-72-portname"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Equipment</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="61" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-61-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="62" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-62-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="63" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-63-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="64" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-64-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="65" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-65-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="66" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-66-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="67" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-67-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="68" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-68-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="69" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-69-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="70" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-70-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="71" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-71-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_usage_desc" data-port-number="72" class="nobordertop noborderbottom usage_description circuit_state_S" id="499362678-72-usagedesc"><div class="content">
+No Desc</div>
+<div class="field-tooltip">
+Description</div>
+</td>
+</tr>
+<tr>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content420" data-port-number="61" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content421" data-port-number="62" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content422" data-port-number="63" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content423" data-port-number="64" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content424" data-port-number="65" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content425" data-port-number="66" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content426" data-port-number="67" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content427" data-port-number="68" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content428" data-port-number="69" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content429" data-port-number="70" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content430" data-port-number="71" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+<td data-entity="{TERM_PORTGR,499362678}" data-attribute="fdm_circuit_id.1" id="content431" data-port-number="72" class="nobordertop empty"><div class="content">
+&nbsp;</div>
+<div class="field-tooltip">
+Remarks</div>
+</td>
+</tr>
+</table>
+<br />
+<h3>
+Cable Summary</h3>
+<table style="margin-left: 22px;">
+<tr>
+<th>Cable</th>
+<th>NO. OF CORES</th>
+<th>USED CORES</th>
+<th>DEFECTIVE</th>
+<th>UTILIZATION (%)</th>
+</tr>
+<tr>
+<td>GLOBE 144 (12*12): TCR_002_MIN862_C1</td>
+<td data-circuit-owner="{FIBER_CABLE_SEG_UNCON,499356335}" data-entity="{BI_TERM_RACK,499362676}" class="recompute-utilisation-total">144</td>
+<td data-circuit-owner="{FIBER_CABLE_SEG_UNCON,499356335}" data-entity="{BI_TERM_RACK,499362676}" class="recompute-utilisation-used">37</td>
+<td data-circuit-owner="{FIBER_CABLE_SEG_UNCON,499356335}" data-entity="{BI_TERM_RACK,499362676}" class="recompute-utilisation-defective">0</td>
+<td data-circuit-owner="{FIBER_CABLE_SEG_UNCON,499356335}" data-entity="{BI_TERM_RACK,499362676}" class="recompute-utilisation-percentage">25.69%</td>
+</tr>
+</table>
+<br />
+</body>
+</html>
