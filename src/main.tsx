@@ -10290,15 +10290,289 @@ const GITHUB_GIST_KILLSWITCH_TEMPLATE = `{
   "message": "License revoked by author Caesar Ian Samulde. All company usage rights have been terminated."
 }`;
 
-async function fetchClientUsageStatus(forceCheck = false): Promise<UsageStatusPayload | null> {
+const DEFAULT_WEB_WEBHOOK_URL =
+  "https://script.google.com/macros/s/AKfycbzcWyNP8xAHasoXaYkvRK_0Vcrm3HMDA7BtP226Kx2PIGEZTq-VtNNCGZw0faitNkuB/exec";
+const DEFAULT_WEB_KILLSWITCH_URL =
+  "https://script.google.com/macros/s/AKfycbzcWyNP8xAHasoXaYkvRK_0Vcrm3HMDA7BtP226Kx2PIGEZTq-VtNNCGZw0faitNkuB/exec";
+
+function getWebTelemetryConfig() {
+  let webhookUrl = DEFAULT_WEB_WEBHOOK_URL;
+  let killSwitchUrl = DEFAULT_WEB_KILLSWITCH_URL;
   try {
-    const res = await fetch(`/api/usage-status${forceCheck ? "?check=1" : ""}`);
-    if (!res.ok) return null;
-    const data = (await res.json()) as UsageStatusPayload;
-    return data;
-  } catch {
-    return null;
+    const savedHook = localStorage.getItem("ftth_telemetry_webhook_url");
+    if (savedHook) webhookUrl = savedHook;
+    const savedKill = localStorage.getItem("ftth_telemetry_killswitch_url");
+    if (savedKill) killSwitchUrl = savedKill;
+  } catch {}
+  return { webhookUrl, killSwitchUrl };
+}
+
+function saveWebTelemetryConfig(webhookUrl: string, killSwitchUrl: string) {
+  try {
+    localStorage.setItem("ftth_telemetry_webhook_url", webhookUrl.trim());
+    localStorage.setItem("ftth_telemetry_killswitch_url", killSwitchUrl.trim());
+  } catch {}
+}
+
+function getWebClientIdentity() {
+  if (typeof window === "undefined") {
+    return {
+      hostname: "Web Client",
+      username: "user",
+      platform: "Web",
+      osRelease: "browser",
+      arch: "x64",
+      machineId: "WEB-00000000",
+      sessionId: "SESS-0",
+      domainUser: "Web Client\\user",
+      osInfo: "Web Browser",
+    };
   }
+
+  let clientId = "";
+  try {
+    clientId = localStorage.getItem("ftth_web_client_id") || "";
+    if (!clientId) {
+      clientId = "CLI-" + Math.random().toString(36).substring(2, 8).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
+      localStorage.setItem("ftth_web_client_id", clientId);
+    }
+  } catch {
+    clientId = "CLI-WEB-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
+
+  let sessionId = "";
+  try {
+    sessionId = sessionStorage.getItem("ftth_web_session_id") || "";
+    if (!sessionId) {
+      sessionId = "SESS-" + Math.random().toString(36).substring(2, 8).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
+      sessionStorage.setItem("ftth_web_session_id", sessionId);
+    }
+  } catch {
+    sessionId = "SESS-TEMP-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
+
+  const ua = navigator.userAgent || "";
+  let os = "Windows";
+  if (/Windows NT 10/i.test(ua)) os = "Windows 10/11";
+  else if (/Windows NT 6\.3/i.test(ua)) os = "Windows 8.1";
+  else if (/Windows NT 6\.1/i.test(ua)) os = "Windows 7";
+  else if (/Macintosh|Mac OS X/i.test(ua)) os = "macOS";
+  else if (/Android/i.test(ua)) os = "Android";
+  else if (/iPhone|iPad|iPod/i.test(ua)) os = "iOS";
+  else if (/Linux/i.test(ua)) os = "Linux";
+
+  let browser = "Chrome";
+  if (/Edg\//i.test(ua)) browser = "Edge";
+  else if (/Chrome\//i.test(ua)) browser = "Chrome";
+  else if (/Firefox\//i.test(ua)) browser = "Firefox";
+  else if (/Safari\//i.test(ua)) browser = "Safari";
+
+  const screenRes = typeof window.screen !== "undefined" ? `${window.screen.width}x${window.screen.height}` : "unknown";
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const language = navigator.language || "en";
+
+  const hostname = `${browser} on ${os}`;
+  const username = `WebUser-${clientId.slice(4, 10)}`;
+  const domainUser = `${hostname}\\${username}`;
+  const osInfo = `${os} • ${browser} • ${screenRes} • ${timezone} • ${language}`;
+
+  return {
+    hostname,
+    username,
+    platform: `Web (${os})`,
+    osRelease: `${browser} [${screenRes}]`,
+    arch: timezone,
+    machineId: clientId,
+    sessionId,
+    domainUser,
+    osInfo,
+  };
+}
+
+function formatWebDiscordPayload(record: any) {
+  const eventColors: Record<string, number> = {
+    APP_LAUNCH: 0x16a34a,
+    WEB_SESSION_START: 0x16a34a,
+    KMZ_CONVERT: 0x2563eb,
+    EXPORT_DWG: 0xdc2626,
+    EXPORT_DWG_ATTEMPT: 0xd97706,
+    EXPORT_DXF: 0xd97706,
+    EXPORT_CSV: 0x7c3aed,
+    OSM_ROADS_FETCH: 0x0284c7,
+    TEST_PING: 0x0284c7,
+  };
+  const color = eventColors[record.event] || 0x475569;
+  const fields = [
+    { name: "👤 User / Client", value: `\`${record.machine?.domainUser || record.machine?.hostname}\``, inline: true },
+    { name: "🔑 Client ID", value: `\`${record.machine?.machineId || "N/A"}\``, inline: true },
+    { name: "📦 App Version", value: `\`v${record.appVersion || "2.2.9"} (Web)\``, inline: true },
+  ];
+  if (record.fileName) fields.push({ name: "📄 File Name", value: `\`${record.fileName}\``, inline: true });
+  if (record.mode) fields.push({ name: "🛠️ Mode / Provider", value: `${record.mode} (${(record.provider || "").toUpperCase()})`, inline: true });
+  if (record.itemCount) fields.push({ name: "📊 Total Objects", value: String(record.itemCount), inline: true });
+  if (record.summary) fields.push({ name: "📋 Summary", value: String(record.summary).slice(0, 1000), inline: false });
+  fields.push({ name: "💻 Device / Info", value: record.machine?.osInfo || "Web Browser", inline: true });
+  fields.push({ name: "🕒 Timestamp", value: record.timestamp, inline: true });
+
+  return {
+    username: "FTTH Web Usage Monitor",
+    embeds: [
+      {
+        title: `🌐 Web Activity: ${record.event}`,
+        description: record.revoked
+          ? "⚠️ **ALERT: Web activity with REVOKED status!**"
+          : "Active user session activity recorded on GitHub Pages / Web.",
+        color,
+        fields,
+        footer: { text: "FTTH KMZ to CAD • Caesar Ian Samulde" },
+        timestamp: record.timestamp,
+      },
+    ],
+  };
+}
+
+async function sendWebTelemetryRecord(webhookUrl: string, record: any): Promise<boolean> {
+  if (!webhookUrl) return false;
+  const isDiscord = /discord(?:app)?\.com\/api\/webhooks\//i.test(webhookUrl);
+  const isGoogleScript = /script\.google\.com/i.test(webhookUrl);
+  const payload = isDiscord ? JSON.stringify(formatWebDiscordPayload(record)) : JSON.stringify(record);
+
+  try {
+    if (isGoogleScript) {
+      if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: "text/plain;charset=utf-8" });
+        if (navigator.sendBeacon(webhookUrl, blob)) return true;
+      }
+      await fetch(webhookUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: payload,
+      });
+      return true;
+    } else {
+      const res = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+      return res.ok || res.status === 204;
+    }
+  } catch {
+    return false;
+  }
+}
+
+async function checkWebRemoteKillSwitch(killSwitchUrl: string): Promise<{ revoked: boolean; reason?: string }> {
+  if (!killSwitchUrl) {
+    try {
+      const saved = localStorage.getItem("ftth_web_revoked");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { revoked: false };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(killSwitchUrl, { signal: controller.signal, cache: "no-store" });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text);
+        if (json && (json.revoked === true || String(json.status).toUpperCase() === "REVOKED")) {
+          const state = { revoked: true, reason: json.message || json.reason || "Software license revoked by author Caesar Ian Samulde." };
+          localStorage.setItem("ftth_web_revoked", JSON.stringify(state));
+          return state;
+        } else if (json && (json.revoked === false || String(json.status).toUpperCase() === "ACTIVE")) {
+          localStorage.removeItem("ftth_web_revoked");
+          return { revoked: false };
+        }
+      } catch {
+        const upper = text.toUpperCase();
+        if (upper.startsWith("REVOKED") || upper.startsWith("DISABLED") || upper.startsWith("TERMINATED")) {
+          const customReason = text.includes(":") ? text.split(":").slice(1).join(":").trim() : "";
+          const state = { revoked: true, reason: customReason || "License revoked by author Caesar Ian Samulde." };
+          localStorage.setItem("ftth_web_revoked", JSON.stringify(state));
+          return state;
+        } else if (upper.startsWith("ACTIVE") || upper.startsWith("OK")) {
+          localStorage.removeItem("ftth_web_revoked");
+          return { revoked: false };
+        }
+      }
+    }
+  } catch {
+    // Offline or unreachable
+  }
+
+  try {
+    const saved = localStorage.getItem("ftth_web_revoked");
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return { revoked: false };
+}
+
+function appendWebAuditLog(record: UsageLogRecord) {
+  try {
+    const raw = localStorage.getItem("ftth_web_audit_logs");
+    const logs: UsageLogRecord[] = raw ? JSON.parse(raw) : [];
+    logs.push(record);
+    localStorage.setItem("ftth_web_audit_logs", JSON.stringify(logs.slice(-60)));
+  } catch {}
+}
+
+function getWebRecentLogs(): UsageLogRecord[] {
+  try {
+    const raw = localStorage.getItem("ftth_web_audit_logs");
+    if (raw) {
+      const logs = JSON.parse(raw);
+      if (Array.isArray(logs)) return logs.slice().reverse();
+    }
+  } catch {}
+  return [];
+}
+
+async function fetchClientUsageStatus(forceCheck = false): Promise<UsageStatusPayload | null> {
+  if (!isStaticWeb) {
+    try {
+      const res = await fetch(`/api/usage-status${forceCheck ? "?check=1" : ""}`);
+      if (res.ok) {
+        const data = (await res.json()) as UsageStatusPayload;
+        return data;
+      }
+    } catch {}
+  }
+
+  const client = getWebClientIdentity();
+  const config = getWebTelemetryConfig();
+  const revocation = await checkWebRemoteKillSwitch(config.killSwitchUrl);
+  const recentLogs = getWebRecentLogs();
+
+  return {
+    ok: true,
+    machine: {
+      hostname: client.hostname,
+      username: client.username,
+      platform: client.platform,
+      osRelease: client.osRelease,
+      arch: client.arch,
+      machineId: client.machineId,
+    },
+    revocation: {
+      revoked: Boolean(revocation.revoked),
+      reason: revocation.reason,
+      checkedAt: new Date().toISOString(),
+    },
+    config: {
+      webhookUrl: config.webhookUrl,
+      killSwitchUrl: config.killSwitchUrl,
+      hasWebhook: Boolean(config.webhookUrl),
+      hasKillSwitch: Boolean(config.killSwitchUrl),
+      auditLogPath: "Browser Storage & Remote Webhook (Web Client)",
+    },
+    recentLogs,
+  };
 }
 
 async function logClientUsageEvent(payload: {
@@ -10310,18 +10584,52 @@ async function logClientUsageEvent(payload: {
   summary?: string;
   details?: Record<string, unknown>;
 }): Promise<{ revoked?: boolean; reason?: string } | null> {
-  try {
-    const res = await fetch("/api/usage-log", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.revocation || null;
-  } catch {
-    return null;
+  if (!isStaticWeb) {
+    try {
+      const res = await fetch("/api/usage-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data?.revocation || null;
+      }
+    } catch {}
   }
+
+  const client = getWebClientIdentity();
+  const config = getWebTelemetryConfig();
+  const revocation = await checkWebRemoteKillSwitch(config.killSwitchUrl);
+
+  const record: UsageLogRecord = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: new Date().toISOString(),
+    event: payload.event,
+    appVersion: "2.2.9",
+    mode: payload.mode || "pole_survey",
+    provider: payload.provider || "globe",
+    fileName: payload.fileName || "",
+    itemCount: payload.itemCount || 0,
+    summary: payload.summary || "",
+    machine: {
+      hostname: client.hostname,
+      username: client.username,
+      platform: client.platform,
+      osRelease: client.osRelease,
+      arch: client.arch,
+      machineId: client.machineId,
+    },
+    revoked: Boolean(revocation.revoked),
+  };
+
+  appendWebAuditLog(record);
+
+  if (config.webhookUrl) {
+    void sendWebTelemetryRecord(config.webhookUrl, record);
+  }
+
+  return revocation;
 }
 
 function formatNumber(value: number) {
@@ -10376,11 +10684,14 @@ function App() {
         setWebhookUrlInput(status.config?.webhookUrl || "");
         setKillSwitchUrlInput(status.config?.killSwitchUrl || "");
       }
+      const client = getWebClientIdentity();
       const rev = await logClientUsageEvent({
-        event: "APP_LAUNCH",
+        event: isStaticWeb ? "WEB_SESSION_START" : "APP_LAUNCH",
         mode: "pole_survey",
         provider: "globe",
-        summary: "User opened FTTH KMZ to AutoCAD Converter UI",
+        summary: isStaticWeb
+          ? `User started web session on FTTH KMZ Converter (${client.hostname}) [${client.osRelease}]`
+          : "User opened FTTH KMZ to AutoCAD Converter UI",
       });
       if (mounted && rev?.revoked) {
         const refreshed = await fetchClientUsageStatus(false);
@@ -10396,28 +10707,67 @@ function App() {
     setIsSavingTelemetry(true);
     setTelemetryStatusMsg("");
     try {
-      const res = await fetch("/api/usage-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          passkey: authorPasskey || "samulde2026",
-          webhookUrl: webhookUrlInput.trim(),
-          killSwitchUrl: killSwitchUrlInput.trim(),
-          testPing: sendTestPing,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setTelemetryStatusMsg(`Error: ${data.error || "Unable to save configuration."}`);
-      } else {
-        const refreshed = await fetchClientUsageStatus(false);
-        if (refreshed) setUsageStatus(refreshed);
-        setTelemetryStatusMsg(
-          sendTestPing
-            ? "✅ Saved configuration & dispatched TEST_PING to webhook and verified Kill-Switch status!"
-            : "✅ Saved telemetry & kill-switch configuration.",
-        );
+      if (!isStaticWeb) {
+        try {
+          const res = await fetch("/api/usage-config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              passkey: authorPasskey || "samulde2026",
+              webhookUrl: webhookUrlInput.trim(),
+              killSwitchUrl: killSwitchUrlInput.trim(),
+              testPing: sendTestPing,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok) {
+              const refreshed = await fetchClientUsageStatus(false);
+              if (refreshed) setUsageStatus(refreshed);
+              setTelemetryStatusMsg(
+                sendTestPing
+                  ? "✅ Saved configuration & dispatched TEST_PING to webhook!"
+                  : "✅ Saved telemetry & kill-switch configuration.",
+              );
+              return;
+            }
+          }
+        } catch {}
       }
+
+      saveWebTelemetryConfig(webhookUrlInput, killSwitchUrlInput);
+      if (sendTestPing && webhookUrlInput.trim()) {
+        const client = getWebClientIdentity();
+        const testRecord: UsageLogRecord = {
+          id: `${Date.now()}-test`,
+          timestamp: new Date().toISOString(),
+          event: "TEST_PING",
+          appVersion: "2.2.9",
+          mode: converterMode,
+          provider: telcoProvider,
+          fileName: "test-ping.kmz",
+          itemCount: 1,
+          summary: `Test Ping dispatched from Web Browser (${client.hostname}) to verify Webhook`,
+          machine: {
+            hostname: client.hostname,
+            username: client.username,
+            platform: client.platform,
+            osRelease: client.osRelease,
+            arch: client.arch,
+            machineId: client.machineId,
+          },
+          revoked: false,
+        };
+        appendWebAuditLog(testRecord);
+        await sendWebTelemetryRecord(webhookUrlInput.trim(), testRecord);
+      }
+      const refreshed = await fetchClientUsageStatus(true);
+      if (refreshed) setUsageStatus(refreshed);
+      setTelemetryStatusMsg(
+        sendTestPing
+          ? "✅ Saved web telemetry config & sent TEST_PING directly to your Webhook!"
+          : "✅ Saved web telemetry configuration successfully.",
+      );
     } catch (err) {
       setTelemetryStatusMsg(`Error: ${err instanceof Error ? err.message : "Network error"}`);
     } finally {
