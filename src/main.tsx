@@ -7,6 +7,7 @@ import {
   FileText,
   History,
   Layers3,
+  MapPin,
   MapPinned,
   Route,
   Scale,
@@ -6985,6 +6986,42 @@ function isPointInsideAnyRoadCarriageway(pt: CadPoint, curbPieces: RoadCurbPiece
   return false;
 }
 
+export type HldProposedNapItem = {
+  id: string;
+  name: string;
+  coordinates: LonLat;
+  napLines: 8 | 16;
+};
+
+export function extractHldProposedNapsFromPlacemarks(placemarks: Placemark[]): HldProposedNapItem[] {
+  const result: HldProposedNapItem[] = [];
+  placemarks.forEach((p, idx) => {
+    if (p.geometry.type !== "Point") return;
+    const folder = p.properties.Folder || p.properties._folder || "";
+    const searchable = `${p.name} ${folder} ${p.description || ""} ${Object.values(p.properties).join(" ")}`;
+
+    if (/\bolt\b|\bpoi\b/i.test(searchable) && !isNapEntity(p.name, folder)) return;
+
+    if (isNapEntity(p.name, folder) || isProposedNapFolder(folder)) {
+      const status = detectNapStatus(searchable, folder);
+      const isDummy = isDummyNapIdentifier(p.name, folder) || status === "DUMMY";
+      if (status === "PROPOSED" && !isDummy) {
+        const is16 =
+          /(\b|_)(16[\s\-_]*(?:lines?|ports?|p)|1[:\/x]16|2[:\/x]16)(\b|_)/i.test(searchable) ||
+          /(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(searchable) ||
+          /\b(?<!non[\s\-_]*)lcp\b/i.test(searchable);
+        result.push({
+          id: p.id || `hld-nap-${idx}`,
+          name: p.name || `Proposed NAP ${idx + 1}`,
+          coordinates: p.geometry.coordinates,
+          napLines: is16 ? 16 : 8,
+        });
+      }
+    }
+  });
+  return result;
+}
+
 function buildProposedNapResLotBoxesEntities(
   placemarks: ClassifiedPlacemark[],
   roadBoundariesMetric: CadPoint[][],
@@ -6993,9 +7030,37 @@ function buildProposedNapResLotBoxesEntities(
   outputPoint: (point: CadPoint) => CadPoint = (point) => point,
   usesRawCoordinates = false,
   textStyle = "STANDARD",
+  hldProposedNaps?: HldProposedNapItem[],
 ): { entities: string[]; points: CadPoint[] } {
-  const napPoles = placemarks.filter((p) => p.geometry.type === "Point" && hasProposedNapAttribute(p));
-  if (!napPoles.length) return { entities: [], points: [] };
+  type NapTarget = {
+    id: string;
+    name: string;
+    coordinates: LonLat;
+    napLines: 8 | 16;
+  };
+
+  let napTargets: NapTarget[] = [];
+
+  if (hldProposedNaps && hldProposedNaps.length > 0) {
+    // Sourced directly from HLD (Source of Truth) — pole attributes are completely bypassed
+    napTargets = hldProposedNaps.map((n) => ({
+      id: n.id,
+      name: n.name,
+      coordinates: n.coordinates,
+      napLines: n.napLines,
+    }));
+  } else {
+    // Fallback only if no HLD is provided
+    const napPoles = placemarks.filter((p) => p.geometry.type === "Point" && hasProposedNapAttribute(p));
+    napTargets = napPoles.map((p) => ({
+      id: p.id,
+      name: p.name,
+      coordinates: (p.geometry as Extract<Geometry, { type: "Point" }>).coordinates,
+      napLines: resolvePoleProposedNapLines(p, placemarks, projectMetric),
+    }));
+  }
+
+  if (!napTargets.length) return { entities: [], points: [] };
 
   const allPolesMetric = placemarks
     .filter((p) => p.geometry.type === "Point")
@@ -7049,11 +7114,11 @@ function buildProposedNapResLotBoxesEntities(
 
   // Place 16-Line NAPs FIRST so that 8-Line NAPs (which are shorter and have more room to slide/adjust)
   // automatically adjust their position along the road curb to avoid overlapping 16-Line NAPs.
-  const orderedNapPoles = napPoles
-    .map((pole, origIdx) => ({
-      pole,
+  const orderedNapTargets = napTargets
+    .map((target, origIdx) => ({
+      target,
       origIdx,
-      napLines: resolvePoleProposedNapLines(pole, placemarks, projectMetric),
+      napLines: target.napLines,
     }))
     .sort((a, b) => {
       if (a.napLines !== b.napLines) return b.napLines - a.napLines; // 16-lines before 8-lines
@@ -7070,14 +7135,13 @@ function buildProposedNapResLotBoxesEntities(
     { fScale: 0.74, dScale: 0.84 },
   ];
 
-  orderedNapPoles.forEach(({ pole, origIdx: poleIdx, napLines }) => {
-    if (pole.geometry.type !== "Point") return;
-    const polePt = projectMetric(pole.geometry.coordinates);
+  orderedNapTargets.forEach(({ target, origIdx: napIdx, napLines }) => {
+    const polePt = projectMetric(target.coordinates);
     const cols = napLines === 16 ? 8 : 5;
     const rows = 2;
 
     // Uniform lot box sizes WITHIN each NAP (while allowing slight overall variation between different NAPs)
-    const seed = Math.abs(Math.round(polePt.x * 0.37 + polePt.y * 0.73)) + poleIdx;
+    const seed = Math.abs(Math.round(polePt.x * 0.37 + polePt.y * 0.73)) + napIdx;
     const colWidth = (cols === 8 ? 14.5 : 18.2) + ((seed % 3) - 1) * 0.6;
     const baseDesiredFrontage = cols * colWidth;
     const baseRowDepth = (cols === 8 ? 15.6 : 18.2) + ((seed % 3) - 1) * 0.5;
@@ -7288,7 +7352,7 @@ function buildProposedNapResLotBoxesEntities(
         tangent = { x: (seg.b.x - seg.a.x) / len, y: (seg.b.y - seg.a.y) / len, z: 0 };
       } else if (allPolesMetric.length >= 2) {
         const nearest = allPolesMetric
-          .filter((p) => p.id !== pole.id)
+          .filter((p) => p.id !== target.id)
           .sort((a, b) => distance(polePt, a.pt) - distance(polePt, b.pt))[0];
         if (nearest) {
           const len = distance(polePt, nearest.pt) || 1;
@@ -7540,6 +7604,7 @@ function createDxf(
   telcoProvider: TelcoProvider = "globe",
   roadWidthStandard: RoadWidthStandard = defaultRoadWidthStandard,
   cableSpanStandard: CableSpanStandard = defaultCableSpanStandard,
+  hldProposedNaps?: HldProposedNapItem[],
 ) {
   resetDxfHandles();
   const zone = utmZone(center.lon);
@@ -7787,6 +7852,7 @@ function createDxf(
       metricToOutput,
       usesRawCoordinates,
       textStyle,
+      hldProposedNaps,
     );
     if (resLotBoxesRes.entities.length > 0) {
       entities.push(...resLotBoxesRes.entities);
@@ -10665,6 +10731,73 @@ function App() {
   const [showProposedNapMapModal, setShowProposedNapMapModal] = useState(false);
   const [hldReferencePins, setHldReferencePins] = useState<HldOverlayPin[]>([]);
   const [hldReferenceLines, setHldReferenceLines] = useState<MapOverlayLine[]>([]);
+  const [hldNapsSource, setHldNapsSource] = useState<HldProposedNapItem[]>([]);
+  const [attachedHldFileName, setAttachedHldFileName] = useState<string>("");
+
+  const activeHldProposedNaps = useMemo<HldProposedNapItem[]>(() => {
+    if (hldNapsSource.length > 0) return hldNapsSource;
+
+    if (hldReferencePins.length > 0) {
+      const proposed = hldReferencePins.filter((pin) => pin.status === "PROPOSED");
+      if (proposed.length > 0) {
+        return proposed.map((pin) => ({
+          id: pin.id,
+          name: pin.name,
+          coordinates: { lat: pin.lat, lon: pin.lon },
+          napLines: pin.lines || 8,
+        }));
+      }
+    }
+
+    if (napResult && napResult.naps.length > 0) {
+      const proposed = napResult.naps.filter(
+        (n) => n.status === "PROPOSED" && !n.isDummy && n.geometry.type === "Point",
+      );
+      if (proposed.length > 0) {
+        return proposed.map((n) => ({
+          id: n.id,
+          name: n.name || n.napId || "Proposed NAP",
+          coordinates: (n.geometry as Extract<Geometry, { type: "Point" }>).coordinates,
+          napLines: (n.ports === 16 || n.splitter === "1:16" || n.splitter === "2:16" ? 16 : 8) as 8 | 16,
+        }));
+      }
+    }
+
+    return [];
+  }, [hldNapsSource, hldReferencePins, napResult]);
+
+  async function handleAttachHldKmz(file: File) {
+    try {
+      const source = await readSourceFile(file);
+      const parsed = source.kmlTexts.flatMap((kml) => parseKml(kml.text));
+      const extracted = extractHldProposedNapsFromPlacemarks(parsed);
+      if (extracted.length === 0) {
+        setError(`No proposed NAPs found in ${file.name}. Ensure it contains proposed NAP placemarks.`);
+        return;
+      }
+      setHldNapsSource(extracted);
+      setAttachedHldFileName(file.name);
+      setError("");
+
+      if (result) {
+        const { dxf, zone } = createDxf(
+          result.placemarks,
+          result.center,
+          result.fileName,
+          poleStandard,
+          coordinateMode,
+          "STANDARD",
+          telcoProvider,
+          roadStandard,
+          cableStandard,
+          extracted,
+        );
+        setResult({ ...result, dxf, zone });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load HLD reference file.");
+    }
+  }
   const [usageStatus, setUsageStatus] = useState<UsageStatusPayload | null>(null);
   const [authorPasskey, setAuthorPasskey] = useState("");
   const [authorUnlocked, setAuthorUnlocked] = useState(false);
@@ -11005,11 +11138,41 @@ function App() {
       const source = await readSourceFile(fileOrFiles);
       const parsed = source.kmlTexts.flatMap((kml) => parseKml(kml.text));
       if (!parsed.length) throw new Error("The KML data did not contain readable placemarks.");
-      const placemarks = parsed.map((p) => classifyPlacemark(p, telcoProvider, poleStandard.electricUtility));
-      const center = calculateCenter(collectCoordinates(parsed));
-      const { dxf, zone } = createDxf(placemarks, center, source.fileName, poleStandard, coordinateMode, "STANDARD", telcoProvider, roadStandard, cableStandard);
+
+      // Check if uploaded files contain HLD Proposed NAPs (Source of Truth)
+      const autoHldNaps = extractHldProposedNapsFromPlacemarks(parsed);
+      let effectiveHldNaps = hldNapsSource.length > 0 ? hldNapsSource : autoHldNaps;
+      if (autoHldNaps.length > 0 && hldNapsSource.length === 0) {
+        setHldNapsSource(autoHldNaps);
+        setAttachedHldFileName(source.fileName);
+        effectiveHldNaps = autoHldNaps;
+      } else if (activeHldProposedNaps.length > 0 && effectiveHldNaps.length === 0) {
+        effectiveHldNaps = activeHldProposedNaps;
+      }
+
+      // If autoHldNaps were found in the uploaded files, remove those HLD NAPs from pole placemarks
+      const isHldNapPoint = (p: Placemark) => {
+        if (p.geometry.type !== "Point") return false;
+        const f = p.properties.Folder || p.properties._folder || "";
+        return isNapEntity(p.name, f);
+      };
+      const poleOnlyParsed = autoHldNaps.length > 0 ? parsed.filter((p) => !isHldNapPoint(p)) : parsed;
+      const placemarks = poleOnlyParsed.map((p) => classifyPlacemark(p, telcoProvider, poleStandard.electricUtility));
+      const center = calculateCenter(collectCoordinates(poleOnlyParsed.length ? poleOnlyParsed : parsed));
+      const { dxf, zone } = createDxf(
+        placemarks,
+        center,
+        source.fileName,
+        poleStandard,
+        coordinateMode,
+        "STANDARD",
+        telcoProvider,
+        roadStandard,
+        cableStandard,
+        effectiveHldNaps,
+      );
       setResult({ fileName: source.fileName, kmlNames: source.kmlTexts.map((kml) => kml.name), placemarks, center, zone, dxf, provider: telcoProvider });
-      if (placemarks.some((p) => p.geometry.type === "Point" && hasProposedNapAttribute(p))) {
+      if (effectiveHldNaps.length > 0 || placemarks.some((p) => p.geometry.type === "Point" && hasProposedNapAttribute(p))) {
         setShowProposedNapMapModal(true);
       }
       const poles = placemarks.filter((p) => p.geometry.type === "Point");
@@ -11064,6 +11227,7 @@ function App() {
         telcoProvider,
         roadStandard,
         cableStandard,
+        activeHldProposedNaps,
       );
       setResult({ ...result, placemarks, zone, dxf });
       const roadCount = newRoads.filter((placemark) => placemark.layer === "ROAD_CENTERLINES").length;
@@ -11121,7 +11285,7 @@ function App() {
       const next = { ...current, ...update };
       if (result) {
         const placemarks = result.placemarks.map((p) => classifyPlacemark(p, telcoProvider, next.electricUtility));
-        const { dxf, zone } = createDxf(placemarks, result.center, result.fileName, next, coordinateMode, "STANDARD", telcoProvider, roadStandard, cableStandard);
+        const { dxf, zone } = createDxf(placemarks, result.center, result.fileName, next, coordinateMode, "STANDARD", telcoProvider, roadStandard, cableStandard, activeHldProposedNaps);
         setResult({ ...result, placemarks, dxf, zone });
       }
       return next;
@@ -11132,7 +11296,7 @@ function App() {
     setRoadStandard((current) => {
       const next = { ...current, ...update };
       if (result) {
-        const { dxf, zone } = createDxf(result.placemarks, result.center, result.fileName, poleStandard, coordinateMode, "STANDARD", telcoProvider, next, cableStandard);
+        const { dxf, zone } = createDxf(result.placemarks, result.center, result.fileName, poleStandard, coordinateMode, "STANDARD", telcoProvider, next, cableStandard, activeHldProposedNaps);
         setResult({ ...result, dxf, zone });
       }
       return next;
@@ -11153,6 +11317,7 @@ function App() {
           telcoProvider,
           roadStandard,
           next,
+          activeHldProposedNaps,
         );
         setResult({ ...result, dxf, zone });
       }
@@ -11184,6 +11349,7 @@ function App() {
       telcoProvider,
       roadStandard,
       cableStandard,
+      activeHldProposedNaps,
     );
     setResult({ ...result, placemarks: nextPlacemarks, dxf, zone });
   }
@@ -11211,6 +11377,7 @@ function App() {
       telcoProvider,
       roadStandard,
       cableStandard,
+      activeHldProposedNaps,
     );
     setResult({ ...result, placemarks: nextPlacemarks, dxf, zone });
   }
@@ -11247,6 +11414,7 @@ function App() {
       telcoProvider,
       roadStandard,
       cableStandard,
+      activeHldProposedNaps,
     );
     setResult({ ...result, placemarks: nextPlacemarks, dxf, zone });
   }
@@ -11302,6 +11470,7 @@ function App() {
       telcoProvider,
       roadStandard,
       cableStandard,
+      activeHldProposedNaps,
     );
     setResult({ ...result, placemarks: nextPlacemarks, dxf, zone });
   }
@@ -11380,6 +11549,7 @@ function App() {
         telcoProvider,
         roadStandard,
         cableStandard,
+        activeHldProposedNaps,
       );
       setResult({ ...result, dxf, zone });
     }
@@ -11416,6 +11586,7 @@ function App() {
         nextProvider,
         roadStandard,
         nextCableStandard,
+        activeHldProposedNaps,
       );
       setResult({ ...result, placemarks, dxf, zone, provider: nextProvider });
     }
@@ -12090,6 +12261,97 @@ function App() {
               <span>{isWorking ? "Reading map data..." : "Drop or select KMZ / KML (or multiple files)"}</span>
               <small>Converts survey poles and routes into native AutoCAD DWG with standardized stencils.</small>
             </label>
+
+            {/* HLD Reference Attachment (Source of Truth for Proposed NAPs) */}
+            <div
+              className="panel"
+              style={{
+                marginTop: "12px",
+                padding: "12px 14px",
+                border: attachedHldFileName || activeHldProposedNaps.length > 0 ? "1.5px solid #16a34a" : "1px dashed var(--border-soft)",
+                background: attachedHldFileName || activeHldProposedNaps.length > 0 ? "rgba(22, 163, 74, 0.05)" : "var(--bg-elevated)",
+                borderRadius: "8px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ flex: "1 1 220px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "13px" }}>
+                    <MapPin size={16} color={attachedHldFileName || activeHldProposedNaps.length > 0 ? "#16a34a" : "#0284c7"} />
+                    <span>HLD Proposed NAPs (Source of Truth for Res Lot Boxes)</span>
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "3px" }}>
+                    {attachedHldFileName ? (
+                      <span style={{ color: "#16a34a", fontWeight: 600 }}>
+                        ✅ Attached HLD: {attachedHldFileName} ({activeHldProposedNaps.length} Proposed NAPs). Conflicting pole survey attributes are bypassed.
+                      </span>
+                    ) : activeHldProposedNaps.length > 0 ? (
+                      <span style={{ color: "#0284c7", fontWeight: 600 }}>
+                        ℹ️ Using {activeHldProposedNaps.length} Proposed NAPs from loaded HLD as the source of truth for residential lot boxes.
+                      </span>
+                    ) : (
+                      <span>Attach HLD KMZ so Res Lot Boxes are strictly placed from HLD locations without reading old pole attributes.</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <label
+                    className="secondaryButton"
+                    style={{
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      fontSize: "12px",
+                      margin: 0,
+                    }}
+                  >
+                    <UploadCloud size={14} />
+                    <span>{attachedHldFileName ? "Replace HLD" : "Attach HLD KMZ"}</span>
+                    <input
+                      type="file"
+                      accept=".kmz,.kml,application/vnd.google-earth.kmz,application/vnd.google-earth.kml+xml"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleAttachHldKmz(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+
+                  {attachedHldFileName && (
+                    <button
+                      type="button"
+                      className="secondaryButton"
+                      style={{ padding: "6px 10px", fontSize: "12px", color: "#dc2626" }}
+                      onClick={() => {
+                        setHldNapsSource([]);
+                        setAttachedHldFileName("");
+                        if (result) {
+                          const { dxf, zone } = createDxf(
+                            result.placemarks,
+                            result.center,
+                            result.fileName,
+                            poleStandard,
+                            coordinateMode,
+                            "STANDARD",
+                            telcoProvider,
+                            roadStandard,
+                            cableStandard,
+                            [],
+                          );
+                          setResult({ ...result, dxf, zone });
+                        }
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {result && (
               <div className="panel" style={{ marginTop: "14px" }}>
