@@ -600,13 +600,14 @@ function parseKml(kmlText: string): Placemark[] {
     const properties = extractProperties(placemark);
 
     let folderName = "";
+    const folderChain: string[] = [];
     let parent = placemark.parentElement;
     while (parent) {
       if (parent.tagName.toLowerCase().endsWith("folder")) {
         const fn = textOf(parent, "name");
         if (fn) {
-          folderName = fn;
-          break;
+          if (!folderName) folderName = fn;
+          folderChain.push(fn);
         }
       }
       parent = parent.parentElement;
@@ -614,6 +615,7 @@ function parseKml(kmlText: string): Placemark[] {
     if (folderName) {
       properties._folder = folderName;
       properties.Folder = folderName;
+      properties._folderChain = folderChain.slice().reverse().join(" / ");
     }
 
     const id = placemark.getAttribute("id") || `${name}-${index}`;
@@ -763,7 +765,9 @@ const napKeywords = ["nap", "fat", "fdp", "splitter", "odn", "fdt", "access poin
 const feederKeywords = ["feeder", "distribution", "foc", "fiber", "fibre", "cable", "ofc", "aerial", "arial", "span", "loop"];
 
 export function isProposedNapFolder(folderName: string): boolean {
+  if (!folderName) return false;
   const norm = normalize(folderName);
+  if (isDummyNapFolder(folderName) || hasExistingNapIdentifier(folderName)) return false;
   return (
     norm.includes("proposed nap") ||
     norm.includes("prop nap") ||
@@ -771,7 +775,12 @@ export function isProposedNapFolder(folderName: string): boolean {
     norm.includes("p-nap") ||
     norm.includes("pnap") ||
     norm.includes("proposed_nap") ||
-    norm.includes("proposed")
+    norm.includes("new nap") ||
+    norm.includes("new_nap") ||
+    norm === "proposed" ||
+    norm.startsWith("proposed ") ||
+    norm.endsWith(" proposed") ||
+    (norm.includes("proposed") && (norm.includes("nap") || norm.includes("fat") || norm.includes("fdp") || norm.includes("splitter") || !norm.includes("pole")))
   );
 }
 
@@ -6998,14 +7007,18 @@ export function extractHldProposedNapsFromPlacemarks(placemarks: Placemark[]): H
   placemarks.forEach((p, idx) => {
     if (p.geometry.type !== "Point") return;
     const folder = p.properties.Folder || p.properties._folder || "";
-    const searchable = `${p.name} ${folder} ${p.description || ""} ${Object.values(p.properties).join(" ")}`;
+    const folderChain = p.properties._folderChain || folder;
+    const searchable = `${p.name} ${folder} ${folderChain} ${p.description || ""} ${Object.values(p.properties).join(" ")}`;
 
     if (/\bolt\b|\bpoi\b/i.test(searchable) && !isNapEntity(p.name, folder)) return;
 
-    if (isNapEntity(p.name, folder) || isProposedNapFolder(folder)) {
+    const underProposedFolder = isProposedNapFolder(folder) || isProposedNapFolder(folderChain);
+
+    if (underProposedFolder || isProposedNapFolder(searchable)) {
       const status = detectNapStatus(searchable, folder);
       const isDummy = isDummyNapIdentifier(p.name, folder) || status === "DUMMY";
-      if (status === "PROPOSED" && !isDummy) {
+      const isExisting = hasExistingNapIdentifier(searchable) || status === "EXISTING";
+      if (!isDummy && !isExisting) {
         const is16 =
           /(\b|_)(16[\s\-_]*(?:lines?|ports?|p)|1[:\/x]16|2[:\/x]16)(\b|_)/i.test(searchable) ||
           /(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(searchable) ||
@@ -7019,7 +7032,17 @@ export function extractHldProposedNapsFromPlacemarks(placemarks: Placemark[]): H
       }
     }
   });
-  return result;
+
+  // Strictly filter for items residing under a PROPOSED NAP folder if present
+  const strictlyUnderFolder = result.filter((item) => {
+    const orig = placemarks.find((p) => p.id === item.id);
+    if (!orig) return false;
+    const f = orig.properties.Folder || orig.properties._folder || "";
+    const fc = orig.properties._folderChain || f;
+    return isProposedNapFolder(f) || isProposedNapFolder(fc);
+  });
+
+  return strictlyUnderFolder.length > 0 ? strictlyUnderFolder : result;
 }
 
 function buildProposedNapResLotBoxesEntities(
@@ -11484,11 +11507,13 @@ function App() {
 
       parsed.forEach((p, idx) => {
         const folder = p.properties.Folder || p.properties._folder || "";
-        const text = `${p.name} ${p.description} ${folder} ${Object.values(p.properties).join(" ")}`;
+        const folderChain = p.properties._folderChain || folder;
+        const text = `${p.name} ${p.description} ${folder} ${folderChain} ${Object.values(p.properties).join(" ")}`;
         if (p.geometry.type === "Point") {
-          const isDummy = isDummyNapIdentifier(p.name, folder);
-          const isExisting = /\bexisting\b|\bsource\b/i.test(text);
+          const isDummy = isDummyNapIdentifier(p.name, folder) || isDummyNapFolder(folder) || isDummyNapFolder(folderChain);
+          const isExisting = hasExistingNapIdentifier(text) || hasExistingNapIdentifier(folder) || hasExistingNapIdentifier(folderChain);
           const isOlt = /\bolt\b|\bpoi\b/i.test(text) && !isNapEntity(p.name, folder);
+          const inProposedFolder = isProposedNapFolder(folder) || isProposedNapFolder(folderChain);
           const is8 =
             /(\b|_)(8[\s\-_]*(?:lines?|ports?|p)|1[:\/x]8|2[:\/x]8)(\b|_)/i.test(text) ||
             (!(
@@ -11496,13 +11521,21 @@ function App() {
               /(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(text)
             ) &&
               /(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?[2-9](?:[_\-\s]|$)/i.test(text));
+          const detectedStatus = detectNapStatus(text, folder);
+          const status: "PROPOSED" | "EXISTING" | "DUMMY" | "OLT" = isOlt
+            ? "OLT"
+            : isDummy || detectedStatus === "DUMMY"
+              ? "DUMMY"
+              : isExisting || detectedStatus === "EXISTING" || detectedStatus === "SOURCE"
+                ? "EXISTING"
+                : "PROPOSED";
           pins.push({
             id: `hld-pin-${idx}-${p.id}`,
             name: p.name || `NAP-${idx + 1}`,
             lat: p.geometry.coordinates.lat,
             lon: p.geometry.coordinates.lon,
             lines: is8 ? 8 : 16,
-            status: isOlt ? "OLT" : isDummy ? "DUMMY" : isExisting ? "EXISTING" : "PROPOSED",
+            status,
           });
         } else if (p.geometry.type === "LineString") {
           refLines.push({
