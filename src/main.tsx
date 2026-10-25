@@ -7065,21 +7065,12 @@ function buildProposedNapResLotBoxesEntities(
   let napTargets: NapTarget[] = [];
 
   if (hldProposedNaps && hldProposedNaps.length > 0) {
-    // Sourced directly from HLD (Source of Truth) — pole attributes are completely bypassed
+    // Sourced strictly from HLD PROPOSED NAP folder (Source of Truth) — pole attributes are completely bypassed
     napTargets = hldProposedNaps.map((n) => ({
       id: n.id,
       name: n.name,
       coordinates: n.coordinates,
       napLines: n.napLines,
-    }));
-  } else {
-    // Fallback only if no HLD is provided
-    const napPoles = placemarks.filter((p) => p.geometry.type === "Point" && hasProposedNapAttribute(p));
-    napTargets = napPoles.map((p) => ({
-      id: p.id,
-      name: p.name,
-      coordinates: (p.geometry as Extract<Geometry, { type: "Point" }>).coordinates,
-      napLines: resolvePoleProposedNapLines(p, placemarks, projectMetric),
     }));
   }
 
@@ -11195,9 +11186,6 @@ function App() {
         effectiveHldNaps,
       );
       setResult({ fileName: source.fileName, kmlNames: source.kmlTexts.map((kml) => kml.name), placemarks, center, zone, dxf, provider: telcoProvider });
-      if (effectiveHldNaps.length > 0 || placemarks.some((p) => p.geometry.type === "Point" && hasProposedNapAttribute(p))) {
-        setShowProposedNapMapModal(true);
-      }
       const poles = placemarks.filter((p) => p.geometry.type === "Point");
       const layerBreakdown = poles.reduce<Record<string, number>>((acc, p) => {
         acc[p.layer] = (acc[p.layer] || 0) + 1;
@@ -12447,17 +12435,9 @@ function App() {
                   </div>
                 </div>
 
-                {(() => {
-                  const rawProposedNapPoles = result.placemarks.filter(
-                    (p) => p.geometry.type === "Point" && (hasRawProposedNapAttribute(p) || hasProposedNapAttribute(p)),
-                  );
-                  if (!rawProposedNapPoles.length) return null;
-                  const proposedNapPoles = rawProposedNapPoles.filter((p) => hasProposedNapAttribute(p));
-                  const projectMetricForUi = (point: LonLat) => lonLatToUtm(point, result.zone);
-                  const count16 = proposedNapPoles.filter(
-                    (p) => resolvePoleProposedNapLines(p, result.placemarks, projectMetricForUi) === 16,
-                  ).length;
-                  const count8 = proposedNapPoles.length - count16;
+                {activeHldProposedNaps.length > 0 ? (() => {
+                  const count16 = activeHldProposedNaps.filter((n) => n.napLines === 16).length;
+                  const count8 = activeHldProposedNaps.length - count16;
                   return (
                     <div
                       style={{
@@ -12479,9 +12459,9 @@ function App() {
                         }}
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <MapPinned size={16} color="#2563eb" />
+                          <MapPin size={16} color="#16a34a" />
                           <strong style={{ fontSize: "13px", color: "var(--text-main)" }}>
-                            Proposed NAP Poles ({proposedNapPoles.length})
+                            HLD Proposed NAPs ({activeHldProposedNaps.length})
                           </strong>
                         </div>
                         <div style={{ display: "flex", gap: "6px", fontSize: "11.5px", fontWeight: 700 }}>
@@ -12508,31 +12488,25 @@ function App() {
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setShowProposedNapMapModal(true)}
-                        style={{
-                          width: "100%",
-                          padding: "10px 14px",
-                          borderRadius: "9px",
-                          border: "1.5px solid #2563eb",
-                          background: "rgba(37, 99, 235, 0.12)",
-                          color: "#2563eb",
-                          fontWeight: 700,
-                          fontSize: "13px",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <MapPinned size={17} />
-                        <span>Open Proposed NAP Location Map & Line Selector</span>
-                      </button>
+                      <div style={{ fontSize: "12px", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                        Source of Truth: Sourced strictly from the <strong>PROPOSED NAP</strong> folder in the HLD file. Pole survey attributes are bypassed.
+                      </div>
                     </div>
                   );
-                })()}
+                })() : (
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      paddingTop: "12px",
+                      borderTop: "1px solid var(--border-soft)",
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <span>Attach your HLD KMZ above to generate Residential Lot Boxes at Proposed NAP locations.</span>
+                  </div>
+                )}
               </div>
             )}
 
