@@ -2,6 +2,28 @@
 
 All notable changes, feature additions, and technical fixes for the **FTTH KMZ-to-CAD Converter** application are documented in this file.
 
+## [2.3.0] - 2026-10-26
+
+### 📦 Accurate Lot Box Count (8 vs 16 Lines), HLD Source of Truth & Web Platform Upgrades
+- **Accurate Residential Lot Box Count for 8-Lines (10 Boxes) vs 16-Lines (16 Boxes) Proposed NAPs (Commit `ec91112`)**:
+  - Enhanced line-detection algorithms for HLD Proposed NAPs named according to standard naming conventions (`MINXXX_L9XX_NXX_8_LINES`, `MINXXX_L9XX_NXX_16_LINES`, supporting underscores, dashes, and whitespace).
+  - Resolved a naming heuristic conflict where `N01` regex previously forced 16 lines regardless of explicit `8_LINES` designation. Explicit `8_LINES`, `1:8`, or `8-PORT` in placemark names now takes strict precedence.
+  - Splitter detection (`detectNapSplitter`) now normalizes underscores and checks both raw string patterns and space-delimited formats.
+  - Verified lot box generation:
+    - **8-Lines NAPs**: Consistently and accurately generate **10 residential lot boxes** (5 columns × 2 rows).
+    - **16-Lines NAPs**: Consistently and accurately generate **16 residential lot boxes** (8 columns × 2 rows).
+- **HLD KMZ as Sole Source of Truth for Proposed NAPs & UI/UX Decluttering (Commits `9db6598`, `9d2641e`, `6c008ee`)**:
+  - Shifted the source of truth for proposed NAPs exclusively to the **HLD KMZ file** under the `PROPOSED NAP` folder structure.
+  - Removed legacy cross-scanning of pole survey placemarks for `Proposed NAP: YES` attributes, completely eliminating false positives and duplicate pins caused by outdated pole surveys or multi-survey sites.
+  - Streamlined UI/UX: removed redundant pole survey proposed-NAP scanning toggles and pole count discrepancies, providing drafters with an explicit HLD proposed NAP reference section and direct visual counts.
+- **Grid Paging Box (`GRID Sheet #`) Disabled by Default**:
+  - Updated the default state of `Grid Paging Box (GRID Sheet #)` in Pole Standards to **unchecked (disabled)**, generating cleaner AutoCAD outputs without sheet border outlines unless drafters explicitly turn them on.
+- **Optimized Web Export & Direct DXF Drafting (Commit `c85e447`)**:
+  - Made AutoCAD DXF (`.dxf`) the primary 1-click CAD export format on web platforms (GitHub Pages).
+  - Added helpful contextual documentation for direct DWG creation via the local desktop utility.
+- **Automated Continuous Deployment Workflow (Commit `b16d831`)**:
+  - Modernized the GitHub Actions CI/CD deployment pipeline with Node.js 22 LTS and automated GitHub Pages deployment enablement.
+
 ## [2.2.8] - 2026-10-14
 
 ### 🔴 Specific HLD NAP Layering (16/8 Lines, LCP/Non-LCP, Dummy), SOURCE NAP Stencil & PLDT Dual Modes

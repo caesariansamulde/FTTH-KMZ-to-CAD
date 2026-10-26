@@ -437,7 +437,7 @@ const defaultPoleStandard: PoleStandard = {
   labelTemplate: "{poleNo}\n{poleType}\n{longitude},{latitude}",
   electricUtility: "AUTO",
   includeFocCable: true,
-  includeGridPagingBox: true,
+  includeGridPagingBox: false,
   includePoleStencils: true,
   includeSpanMeasurements: true,
   includeRoads: true,
@@ -7976,7 +7976,7 @@ function createDxf(
       allSitePoleOutputPts.push(adjOutput);
     }
   });
-  if (poleStandard.includeGridPagingBox !== false && allSitePoleOutputPts.length > 0) {
+  if (Boolean(poleStandard.includeGridPagingBox) && allSitePoleOutputPts.length > 0) {
     const gridPagingRes = buildGridPagingBoxEntities(
       allSitePoleOutputPts,
       allCadPoints,
@@ -11772,12 +11772,12 @@ function App() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
               <p className="eyebrow" style={{ margin: 0 }}>FTTH Drafting Utility • © 2026 Caesar Ian Samulde</p>
-              <span className="versionBadge">v2.2.8</span>
+              <span className="versionBadge">v2.3.0</span>
               <button
                 type="button"
                 className="changelogButton"
                 onClick={() => setShowChangelogModal(true)}
-                title="View what is new in version 2.2.8"
+                title="View what is new in version 2.3.0"
               >
                 <Sparkles size={12} color="#15803d" />
                 <span>What's New</span>
@@ -12927,7 +12927,7 @@ function App() {
                   <label className="checkboxLabel" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer" }}>
                     <input
                       type="checkbox"
-                      checked={poleStandard.includeGridPagingBox !== false}
+                      checked={Boolean(poleStandard.includeGridPagingBox)}
                       onChange={(e) => updatePoleStandard({ includeGridPagingBox: e.target.checked })}
                     />
                     <span>Grid Paging Box (GRID Sheet #)</span>
@@ -13310,7 +13310,7 @@ function App() {
                 onClick={() => setShowChangelogModal(true)}
               >
                 <Sparkles size={14} />
-                <span>What's New (v2.2.8)</span>
+                <span>What's New (v2.3.0)</span>
               </button>
               <button
                 type="button"
@@ -13787,14 +13787,53 @@ function App() {
             </div>
 
             <div className="modalBody" style={{ maxHeight: "70vh", overflowY: "auto" }}>
-              {/* Version 2.2.8 */}
+              {/* Version 2.3.0 */}
               <div className="changelogCard" style={{ borderLeft: "4px solid #16a34a" }}>
+                <div className="changelogVersionHeader">
+                  <div className="changelogVersionTitle">
+                    <span>v2.3.0</span>
+                    <span style={{ fontSize: "12px", color: "var(--text-muted, #64748b)", fontWeight: 500 }}>• October 26, 2026</span>
+                  </div>
+                  <span className="changelogReleaseTag" style={{ background: "#16a34a" }}>Current Version</span>
+                </div>
+                <ul className="changelogList">
+                  <li>
+                    <strong>📦 Accurate 8-Lines (10 Boxes) vs 16-Lines (16 Boxes) Lot Box Count (Commit <code>ec91112</code>)</strong>:
+                    <br />• Corrected line-count parsing for HLD Proposed NAPs named <code>MINXXX_L9XX_NXX_8_LINES</code> or <code>...16_LINES</code> (supporting underscores, dashes, and spaces).
+                    <br />• Fixed legacy heuristic conflict where <code>N01</code> previously forced 16 lines regardless of explicit naming; explicit <code>8_LINES</code> / <code>1:8</code> / <code>8-PORT</code> now takes strict precedence.
+                    <br />• <strong>8-Lines NAPs</strong> consistently generate exactly <strong>10 residential lot boxes</strong> (5 columns × 2 rows).
+                    <br />• <strong>16-Lines NAPs</strong> consistently generate exactly <strong>16 residential lot boxes</strong> (8 columns × 2 rows).
+                  </li>
+                  <li>
+                    <strong>🗺️ HLD KMZ as Single Source of Truth for Proposed NAPs (Commits <code>9db6598</code>, <code>9d2641e</code>, <code>6c008ee</code>)</strong>:
+                    <br />• Removed legacy pole survey scanning for <code>Proposed NAP: YES</code> attributes, completely eliminating false positives from outdated or conflicting pole survey files in multi-survey sites.
+                    <br />• The HLD KMZ file (specifically placemarks under the <code>PROPOSED NAP</code> folder) is now the definitive source of truth for NAP locations and lot box layouts.
+                    <br />• Cleaned up UI/UX by removing obsolete pole-scanning toggles and showing direct visual HLD NAP badges and counts.
+                  </li>
+                  <li>
+                    <strong>📐 Grid Paging Box Unchecked by Default</strong>:
+                    <br />• <code>Grid Paging Box (GRID Sheet #)</code> is now unchecked (disabled) by default under Pole Standards, producing cleaner CAD drawings by default without paging grid sheet outlines unless explicitly requested.
+                  </li>
+                  <li>
+                    <strong>⚡ Optimized Web DXF Direct Export & Desktop DWG Guide (Commit <code>c85e447</code>)</strong>:
+                    <br />• Optimized the web application to provide instant, 1-click native DXF downloads directly compatible with all AutoCAD versions (Civil 3D, Map 3D, AutoCAD LT).
+                    <br />• Added helpful contextual documentation for direct DWG creation via the local desktop utility.
+                  </li>
+                  <li>
+                    <strong>🚀 Automated CI/CD Continuous Deployment (Commit <code>b16d831</code>)</strong>:
+                    <br />• Upgraded GitHub Actions build environment with Node.js 22 LTS and automated GitHub Pages deployment enablement.
+                  </li>
+                </ul>
+              </div>
+
+              {/* Version 2.2.8 */}
+              <div className="changelogCard" style={{ borderLeft: "4px solid #64748b" }}>
                 <div className="changelogVersionHeader">
                   <div className="changelogVersionTitle">
                     <span>v2.2.8</span>
                     <span style={{ fontSize: "12px", color: "var(--text-muted, #64748b)", fontWeight: 500 }}>• October 2026</span>
                   </div>
-                  <span className="changelogReleaseTag" style={{ background: "#16a34a" }}>Current Version</span>
+                  <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "9999px", background: "rgba(100, 116, 139, 0.12)", color: "#475569" }}>Feature Update</span>
                 </div>
                 <ul className="changelogList">
                   <li>
