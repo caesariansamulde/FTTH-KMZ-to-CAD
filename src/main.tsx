@@ -1,12 +1,20 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  BookOpen,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
+  Compass,
   Download,
   FileArchive,
   FileText,
+  FolderOpen,
+  HelpCircle,
   History,
   Layers3,
+  Lightbulb,
   MapPin,
   MapPinned,
   Route,
@@ -10802,12 +10810,37 @@ function App() {
   const [isConvertingNapDwg, setIsConvertingNapDwg] = useState(false);
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   const [showChangelogModal, setShowChangelogModal] = useState(false);
+  const [showTutorialModal, setShowTutorialModal] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [dontShowTutorialAgain, setDontShowTutorialAgain] = useState(false);
   const [showTelemetryModal, setShowTelemetryModal] = useState(false);
   const [showProposedNapMapModal, setShowProposedNapMapModal] = useState(false);
   const [hldReferencePins, setHldReferencePins] = useState<HldOverlayPin[]>([]);
   const [hldReferenceLines, setHldReferenceLines] = useState<MapOverlayLine[]>([]);
   const [hldNapsSource, setHldNapsSource] = useState<HldProposedNapItem[]>([]);
   const [attachedHldFileName, setAttachedHldFileName] = useState<string>("");
+
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem("ftth_converter_tutorial_seen");
+      if (!seen) {
+        setShowTutorialModal(true);
+      }
+    } catch {
+      // LocalStorage access fallback
+    }
+  }, []);
+
+  function handleCloseTutorial(permanent = false) {
+    setShowTutorialModal(false);
+    if (permanent || dontShowTutorialAgain) {
+      try {
+        localStorage.setItem("ftth_converter_tutorial_seen", "true");
+      } catch {
+        // LocalStorage access fallback
+      }
+    }
+  }
 
   const activeHldProposedNaps = useMemo<HldProposedNapItem[]>(() => {
     if (hldNapsSource.length > 0) return hldNapsSource;
@@ -11775,6 +11808,18 @@ function App() {
               <span className="versionBadge">v2.3.0</span>
               <button
                 type="button"
+                className="tutorialButton"
+                onClick={() => {
+                  setTutorialStep(0);
+                  setShowTutorialModal(true);
+                }}
+                title="How to use the converter - Step-by-step tutorial"
+              >
+                <Compass size={12} color="#2563eb" />
+                <span>Tutorial</span>
+              </button>
+              <button
+                type="button"
                 className="changelogButton"
                 onClick={() => setShowChangelogModal(true)}
                 title="View what is new in version 2.3.0"
@@ -12240,6 +12285,25 @@ function App() {
           <div className="shell">
           {/* Top-Left: Dropzone & File info */}
           <div className="uploadArea">
+            {!result && (
+              <div className="tutorialBanner">
+                <div className="tutorialBannerTitle">
+                  <Compass size={16} />
+                  <span>New to the converter? Learn how to generate CAD drawings in 5 easy steps.</span>
+                </div>
+                <button
+                  type="button"
+                  className="tutorialBannerAction"
+                  onClick={() => {
+                    setTutorialStep(0);
+                    setShowTutorialModal(true);
+                  }}
+                >
+                  Open Tutorial
+                </button>
+              </div>
+            )}
+
             {/* Telco Provider Standard Switcher */}
             <div style={{ marginBottom: "12px", background: "var(--bg-elevated)", border: "1px solid var(--border-soft)", borderRadius: "10px", padding: "10px 14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
@@ -13307,6 +13371,17 @@ function App() {
               <button
                 type="button"
                 className="licenseLinkButton"
+                onClick={() => {
+                  setTutorialStep(0);
+                  setShowTutorialModal(true);
+                }}
+              >
+                <Compass size={14} />
+                <span>How to Use Tutorial</span>
+              </button>
+              <button
+                type="button"
+                className="licenseLinkButton"
                 onClick={() => setShowChangelogModal(true)}
               >
                 <Sparkles size={14} />
@@ -13762,6 +13837,290 @@ function App() {
               >
                 Close Audit Panel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* First-Time User Tutorial Modal */}
+      {showTutorialModal && (
+        <div className="modalOverlay" onClick={() => handleCloseTutorial()}>
+          <div className="modalCard" style={{ maxWidth: "780px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <div className="modalTitle">
+                <Compass size={22} color="#2563eb" />
+                <div>
+                  <h2 style={{ margin: 0, fontSize: "1.15rem" }}>How to Use FTTH KMZ-to-CAD Converter</h2>
+                  <p style={{ margin: 0, fontSize: "12px", color: "var(--text-muted, #64748b)", fontWeight: 500 }}>
+                    Step-by-step onboarding tutorial for drafters and engineers
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="modalCloseButton"
+                onClick={() => handleCloseTutorial()}
+                aria-label="Close tutorial modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modalBody" style={{ maxHeight: "72vh", overflowY: "auto" }}>
+              {/* Step Navigation Pills */}
+              <div className="tutorialStepNav">
+                {[
+                  { step: 0, label: "1. Overview" },
+                  { step: 1, label: "2. Mode & Telco" },
+                  { step: 2, label: "3. Upload & HLD" },
+                  { step: 3, label: "4. CAD Standards" },
+                  { step: 4, label: "5. Export to CAD" },
+                ].map((s) => (
+                  <button
+                    key={s.step}
+                    type="button"
+                    className={`tutorialStepPill ${tutorialStep === s.step ? "active" : tutorialStep > s.step ? "completed" : ""}`}
+                    onClick={() => setTutorialStep(s.step)}
+                  >
+                    {tutorialStep > s.step && <CheckCircle2 size={13} />}
+                    <span>{s.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Step 0: Overview */}
+              {tutorialStep === 0 && (
+                <div className="tutorialCard">
+                  <div className="tutorialCardTitle">
+                    <BookOpen size={18} color="#2563eb" />
+                    <span>Welcome to FTTH KMZ to AutoCAD Converter</span>
+                  </div>
+                  <p style={{ margin: "0 0 12px", fontSize: "13.5px", color: "var(--text-main)", lineHeight: 1.6 }}>
+                    This application automates the conversion of Google Earth <strong>.kmz</strong> and <strong>.kml</strong> survey files and network designs into precision, layer-isolated <strong>AutoCAD DXF and DWG</strong> drawings ready for drafting, permit applications, and construction.
+                  </p>
+
+                  <div className="tutorialFeatureGrid">
+                    <div className="tutorialFeatureCard">
+                      <strong>⚡ Zero CAD Setup Required</strong>
+                      Automatically creates official telco blocks, layers, line weights, and coordinates. No manual templates needed.
+                    </div>
+                    <div className="tutorialFeatureCard">
+                      <strong>🏛️ Globe &amp; PLDT / Smart Standards</strong>
+                      Built-in official blocks (Electric, PLDT, and Proposed poles) and official NAP D-box stencils with attribute grips.
+                    </div>
+                    <div className="tutorialFeatureCard">
+                      <strong>📦 Residential Lot Box Automation</strong>
+                      Automatically places 10 or 16 lot boxes beside roads per proposed NAP based directly on your HLD design.
+                    </div>
+                    <div className="tutorialFeatureCard">
+                      <strong>🚀 1-Click Native DXF &amp; DWG Export</strong>
+                      Instantly download DXF files that open directly in AutoCAD, Civil 3D, and AutoCAD LT, or use the desktop app for native DWG.
+                    </div>
+                  </div>
+
+                  <div className="tutorialInfoBox">
+                    <Lightbulb size={18} style={{ flexShrink: 0, marginTop: "2px" }} />
+                    <div>
+                      <strong>Quick Drafting Workflow:</strong>
+                      <br />Select Telco Provider ➔ Choose Converter Mode ➔ Upload KMZ &amp; Attach HLD ➔ Review on Map ➔ Download AutoCAD DXF!
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 1: Provider & Mode */}
+              {tutorialStep === 1 && (
+                <div className="tutorialCard">
+                  <div className="tutorialCardTitle">
+                    <Settings2 size={18} color="#2563eb" />
+                    <span>Step 1: Choose Telco Provider &amp; Converter Mode</span>
+                  </div>
+                  <p style={{ margin: "0 0 12px", fontSize: "13.5px", color: "var(--text-main)", lineHeight: 1.6 }}>
+                    Before uploading your files, configure your target telecommunications provider and converter mode:
+                  </p>
+
+                  <div className="tutorialFeatureGrid">
+                    <div className="tutorialFeatureCard" style={{ borderLeft: "4px solid #2563eb" }}>
+                      <strong style={{ color: "#2563eb" }}>Globe Telecom Standard</strong>
+                      • Uses standard Globe pole markers and official NAP stencils (<code>GLOBE NAP PROPOSED</code>, <code>GLOBE NAP 8-LINES</code>, <code>GLOBE NAP EXISTING</code>, <code>GLOBE NAP DUMMY</code>).
+                      <br />• Default aerial span allowance: <strong>+2.0 meters</strong>.
+                      <br />• Road labels generated in <strong>Yellow (AutoCAD Color 2)</strong>.
+                    </div>
+                    <div className="tutorialFeatureCard" style={{ borderLeft: "4px solid #dc2626" }}>
+                      <strong style={{ color: "#dc2626" }}>PLDT / Smart Standard</strong>
+                      • Dual modes: <strong>Structured</strong> (for photo surveys with bulleted tags and tables) and <strong>Legacy</strong>.
+                      <br />• Official stencils: <code>NEW_ELECTRIC_SYSMBOL</code>, <code>NEW_PLDT_SYSMBOL</code>, <code>NEW_PROPOSE POLE_SYSMBOL</code>.
+                      <br />• Automatically places pole clamp labels (<code>VS2/S2/B2/VB2</code>, <code>VS3/S3/B3/VB3</code>) and embeds the <strong>POLE CLAMP</strong> legend.
+                      <br />• Default aerial span allowance: <strong>+0.5 meters</strong>.
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "14px", padding: "12px 14px", background: "var(--bg-soft)", borderRadius: "8px", border: "1px solid var(--border-soft)", fontSize: "13px" }}>
+                    <strong>Choose Between Two Conversion Modes:</strong>
+                    <ul style={{ margin: "6px 0 0", paddingLeft: "20px", lineHeight: 1.6 }}>
+                      <li><strong>Pole Survey Converter</strong>: Use this for field survey files with poles, aerial fiber cables, roads, and residential lots.</li>
+                      <li><strong>HLD NAP &amp; Stencil Converter</strong>: Use this when converting High-Level Design (HLD) network placemarks directly into official NAP blocks, drop areas, and schedules.</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Upload & HLD */}
+              {tutorialStep === 2 && (
+                <div className="tutorialCard">
+                  <div className="tutorialCardTitle">
+                    <UploadCloud size={18} color="#2563eb" />
+                    <span>Step 2: Upload Survey &amp; Attach HLD (Source of Truth)</span>
+                  </div>
+                  <p style={{ margin: "0 0 12px", fontSize: "13.5px", color: "var(--text-main)", lineHeight: 1.6 }}>
+                    Uploading your survey files and connecting your HLD design is simple and foolproof:
+                  </p>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div className="tutorialFeatureCard">
+                      <strong>1. Primary KMZ / KML Survey File</strong>
+                      Drag and drop your pole survey <code>.kmz</code> or <code>.kml</code> into the upload dropzone. You can also select multiple survey files simultaneously for large multi-sheet projects.
+                    </div>
+
+                    <div className="tutorialFeatureCard" style={{ borderLeft: "4px solid #16a34a" }}>
+                      <strong style={{ color: "#16a34a" }}>2. Attach HLD Reference KMZ (Single Source of Truth)</strong>
+                      • To generate residential lot boxes, click <strong>"Attach HLD Reference KMZ"</strong>.
+                      <br />• The converter scans exclusively inside the <strong><code>PROPOSED NAP</code></strong> folder.
+                      <br />• <strong>Accurate Line-Count Detection</strong>:
+                      <ul style={{ margin: "4px 0 0", paddingLeft: "20px" }}>
+                        <li><strong>8-Lines Proposed NAPs</strong> (e.g. <code>MINXXX_L9XX_NXX_8_LINES</code> / <code>1:8</code>): Automatically generates exactly <strong>10 residential lot boxes</strong> (5 cols × 2 rows).</li>
+                        <li><strong>16-Lines Proposed NAPs</strong> (e.g. <code>MINXXX_L9XX_NXX_16_LINES</code> / <code>1:16</code>): Automatically generates exactly <strong>16 residential lot boxes</strong> (8 cols × 2 rows).</li>
+                      </ul>
+                      • All lot boxes are dynamically projected to sit neatly on the curbside along roads.
+                    </div>
+                  </div>
+
+                  <div className="tutorialHighlightBox">
+                    <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: "2px" }} />
+                    <div>
+                      <strong>No False Positives:</strong> The converter no longer scans poles for <code>Proposed NAP: YES</code> attributes. Your HLD KMZ is the sole source of truth, completely preventing duplicate pins or wrong lot boxes from old pole surveys.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: CAD Standards */}
+              {tutorialStep === 3 && (
+                <div className="tutorialCard">
+                  <div className="tutorialCardTitle">
+                    <Layers3 size={18} color="#2563eb" />
+                    <span>Step 3: Configure CAD Standards, Utilities &amp; Layers</span>
+                  </div>
+                  <p style={{ margin: "0 0 12px", fontSize: "13.5px", color: "var(--text-main)", lineHeight: 1.6 }}>
+                    Customize drafting standards to match your project specifications:
+                  </p>
+
+                  <div className="tutorialFeatureGrid">
+                    <div className="tutorialFeatureCard">
+                      <strong>🌐 Coordinate System</strong>
+                      • <strong>EPSG:3395 (World Mercator)</strong>: Best for universal metric coordinates.
+                      <br />• <strong>EPSG:3857 (Pseudo-Mercator)</strong>: Standard Web Mercator.
+                      <br />• <strong>UTM Scale (m)</strong>: Projects into local UTM zones.
+                    </div>
+                    <div className="tutorialFeatureCard">
+                      <strong>⚡ Electric Utility / Power Coop</strong>
+                      Select your local electric cooperative (e.g. <strong>Meralco, DLPC, VECO, MORE, COTELCO, BENECO</strong>).
+                      <br />Surveyed poles are automatically placed onto dedicated layers (e.g. <code>MERALCO</code>, <code>DLPC</code>) for 1-click <code>SELECTSIMILAR</code> counting in AutoCAD!
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "12px", padding: "12px 14px", background: "var(--bg-soft)", borderRadius: "8px", border: "1px solid var(--border-soft)", fontSize: "13px" }}>
+                    <strong>Drafting Elements Toggles (Pole Standards):</strong>
+                    <ul style={{ margin: "6px 0 0", paddingLeft: "20px", lineHeight: 1.6 }}>
+                      <li><strong>Aerial FOC Cable</strong>: Draws continuous lines between poles on <code>P-AERIAL_FOC</code>.</li>
+                      <li><strong>Road Corridors &amp; Curbs</strong>: Generates road carriageways and curbs from OpenStreetMap corridors.</li>
+                      <li><strong>Pole Stencils &amp; Markers</strong>: Places standard pole symbols and unlocked 3-line attributes.</li>
+                      <li><strong>Grid Paging Box</strong>: Unchecked by default for clean drawings; turn on if you need sheet boundary tiles.</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Export to CAD */}
+              {tutorialStep === 4 && (
+                <div className="tutorialCard">
+                  <div className="tutorialCardTitle">
+                    <Download size={18} color="#16a34a" />
+                    <span>Step 4: Preview on Map &amp; Export to AutoCAD</span>
+                  </div>
+                  <p style={{ margin: "0 0 12px", fontSize: "13.5px", color: "var(--text-main)", lineHeight: 1.6 }}>
+                    Once your file is loaded, you have complete visibility and one-click export:
+                  </p>
+
+                  <div className="tutorialFeatureGrid">
+                    <div className="tutorialFeatureCard">
+                      <strong>🗺️ Interactive Map Preview</strong>
+                      • View all poles, cable spans, road networks, and residential lot boxes.
+                      <br />• Click any pole pin to view its tag, classification, owner, and assigned clamp size.
+                      <br />• Summary cards show live pole breakdowns by utility.
+                    </div>
+                    <div className="tutorialFeatureCard">
+                      <strong>💾 1-Click AutoCAD Export</strong>
+                      • <strong>Download AutoCAD DXF</strong>: Immediate native CAD export. Opens in AutoCAD Civil 3D, Map 3D, and AutoCAD LT without missing blocks or fonts.
+                      <br />• <strong>Export CSV Schedules</strong>: One-click export of pole and NAP schedules for billing and BOM.
+                    </div>
+                  </div>
+
+                  <div className="tutorialHighlightBox">
+                    <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: "2px" }} />
+                    <div>
+                      <strong>Ready to Draft!</strong> Open your downloaded <code>.dxf</code> directly in AutoCAD, type <code>ZOOM</code> ➔ <code>E</code> (Extents), and your complete FTTH network is ready for production.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="modalFooter" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", color: "var(--text-muted, #64748b)", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={dontShowTutorialAgain}
+                  onChange={(e) => setDontShowTutorialAgain(e.target.checked)}
+                />
+                <span>Don't show this tutorial on startup</span>
+              </label>
+
+              <div style={{ display: "flex", gap: "8px" }}>
+                {tutorialStep > 0 && (
+                  <button
+                    type="button"
+                    className="secondaryButton"
+                    style={{ padding: "6px 14px", fontSize: "13px" }}
+                    onClick={() => setTutorialStep((s) => s - 1)}
+                  >
+                    <ChevronLeft size={16} />
+                    Previous
+                  </button>
+                )}
+
+                {tutorialStep < 4 ? (
+                  <button
+                    type="button"
+                    className="primaryButton"
+                    style={{ padding: "6px 16px", fontSize: "13px" }}
+                    onClick={() => setTutorialStep((s) => s + 1)}
+                  >
+                    Next Step
+                    <ChevronRight size={16} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="primaryButton"
+                    style={{ padding: "6px 16px", fontSize: "13px", background: "#16a34a", borderColor: "#16a34a" }}
+                    onClick={() => handleCloseTutorial(dontShowTutorialAgain)}
+                  >
+                    <CheckCircle2 size={16} />
+                    Finish &amp; Start Converting
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
