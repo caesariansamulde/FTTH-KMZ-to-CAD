@@ -937,21 +937,13 @@ export function detectNapStatus(searchable: string, folderName = ""): NapStatus 
 }
 
 export function detectNapSplitter(searchable: string, defaultSplitter: NapSplitter = "1:16"): NapSplitter {
-  const norm = normalize(searchable);
-  if (
-    norm.includes("16 line") ||
-    norm.includes("16line") ||
-    norm.includes("16-line") ||
-    norm.includes("1:16") ||
-    norm.includes("1/16") ||
-    norm.includes("16p") ||
-    norm.includes("16-p") ||
-    norm.includes("16 port") ||
-    norm.includes("16port")
-  ) {
-    return "1:16";
-  }
-  if (
+  const clean = searchable.replace(/_/g, " ");
+  const norm = normalize(clean);
+
+  // 1. Explicit 8-lines / 1:8 / 8-port checks (checks both raw string and with spaces/underscores)
+  const has8 =
+    /(?:^|[_\-\s])8[_\-\s]*(?:lines?|ports?|p)(?:[_\-\s]|$)/i.test(searchable) ||
+    /(?:^|[_\-\s])(?:1|2)[:\/x]8(?:[_\-\s]|$)/i.test(searchable) ||
     norm.includes("8 line") ||
     norm.includes("8line") ||
     norm.includes("8-line") ||
@@ -960,10 +952,35 @@ export function detectNapSplitter(searchable: string, defaultSplitter: NapSplitt
     norm.includes("8p") ||
     norm.includes("8-p") ||
     norm.includes("8 port") ||
-    norm.includes("8port")
-  ) {
+    norm.includes("8port");
+
+  // 2. Explicit 16-lines / 1:16 / 16-port checks
+  const has16 =
+    /(?:^|[_\-\s])16[_\-\s]*(?:lines?|ports?|p)(?:[_\-\s]|$)/i.test(searchable) ||
+    /(?:^|[_\-\s])(?:1|2)[:\/x]16(?:[_\-\s]|$)/i.test(searchable) ||
+    norm.includes("16 line") ||
+    norm.includes("16line") ||
+    norm.includes("16-line") ||
+    norm.includes("1:16") ||
+    norm.includes("1/16") ||
+    norm.includes("16p") ||
+    norm.includes("16-p") ||
+    norm.includes("16 port") ||
+    norm.includes("16port");
+
+  if (has8 && !has16) {
+    if (/(?:^|[_\-\s])2[:\/x]8(?:[_\-\s]|$)/i.test(searchable) || norm.includes("2:8") || norm.includes("2/8")) {
+      return "2:8";
+    }
     return "1:8";
   }
+  if (has16 && !has8) {
+    if (/(?:^|[_\-\s])2[:\/x]16(?:[_\-\s]|$)/i.test(searchable) || norm.includes("2:16") || norm.includes("2/16")) {
+      return "2:16";
+    }
+    return "1:16";
+  }
+
   if (
     norm.includes("4 line") ||
     norm.includes("4line") ||
@@ -6818,19 +6835,19 @@ export function resolvePoleProposedNapLines(
     .filter(Boolean)
     .join(" ");
 
-  if (
-    /(\b|_)(16[\s\-_]*(?:lines?|ports?|p)|1[:\/x]16|2[:\/x]16)(\b|_)/i.test(directFields) ||
-    /(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(directFields) ||
-    /\b(?<!non[\s\-_]*)lcp\b/i.test(directFields)
-  ) {
-    return 16;
-  }
-  if (
-    /(\b|_)(8[\s\-_]*(?:lines?|ports?|p)|1[:\/x]8|2[:\/x]8|non[\s\-_]*lcp)(\b|_)/i.test(directFields) ||
-    /(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?[2-9](?:[_\-\s]|$)/i.test(directFields)
-  ) {
-    return 8;
-  }
+  const hasExplicit8 =
+    /(?:^|[_\-\s])8[_\-\s]*(?:lines?|ports?|p)(?:[_\-\s]|$)/i.test(directFields) ||
+    /(?:^|[_\-\s])(?:1|2)[:\/x]8(?:[_\-\s]|$)/i.test(directFields);
+  const hasExplicit16 =
+    /(?:^|[_\-\s])16[_\-\s]*(?:lines?|ports?|p)(?:[_\-\s]|$)/i.test(directFields) ||
+    /(?:^|[_\-\s])(?:1|2)[:\/x]16(?:[_\-\s]|$)/i.test(directFields);
+
+  if (hasExplicit8 && !hasExplicit16) return 8;
+  if (hasExplicit16 && !hasExplicit8) return 16;
+  if (/\bnon[_\-\s]*lcp\b/i.test(directFields)) return 8;
+  if (/\blcp\b/i.test(directFields)) return 16;
+  if (/(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?[2-9](?:[_\-\s]|$)/i.test(directFields)) return 8;
+  if (/(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(directFields)) return 16;
 
   // Check if a separate NAP placemark is located near this pole (within 28m)
   if (pole.geometry.type === "Point") {
@@ -7002,6 +7019,54 @@ export type HldProposedNapItem = {
   napLines: 8 | 16;
 };
 
+export function resolveHldProposedNapLines(
+  placemark: Placemark | { name?: string; description?: string; properties?: Record<string, string> }
+): 8 | 16 {
+  const name = placemark.name || "";
+  const props = placemark.properties || {};
+  const folder = props.Folder || props._folder || "";
+  const folderChain = props._folderChain || folder;
+  const desc = placemark.description || "";
+  const propValues = Object.values(props).join(" ");
+  const fullText = `${name} ${folder} ${folderChain} ${desc} ${propValues}`;
+
+  // 1. Direct explicit property
+  if (props._napLines === "8") return 8;
+  if (props._napLines === "16") return 16;
+
+  // 2. Explicit 8 or 16 in Placemark Name (highest priority for HLD placemark naming, e.g. MINXXX_L9XX_NXX_8_LINES or 16 LINES)
+  const hasExplicit8InName =
+    /(?:^|[_\-\s])8[_\-\s]*(?:lines?|ports?|p)(?:[_\-\s]|$)/i.test(name) ||
+    /(?:^|[_\-\s])(?:1|2)[:\/x]8(?:[_\-\s]|$)/i.test(name);
+  const hasExplicit16InName =
+    /(?:^|[_\-\s])16[_\-\s]*(?:lines?|ports?|p)(?:[_\-\s]|$)/i.test(name) ||
+    /(?:^|[_\-\s])(?:1|2)[:\/x]16(?:[_\-\s]|$)/i.test(name);
+
+  if (hasExplicit8InName && !hasExplicit16InName) return 8;
+  if (hasExplicit16InName && !hasExplicit8InName) return 16;
+
+  // 3. Explicit 8 or 16 in properties or description or folder chain
+  const hasExplicit8InText =
+    /(?:^|[_\-\s])8[_\-\s]*(?:lines?|ports?|p)(?:[_\-\s]|$)/i.test(fullText) ||
+    /(?:^|[_\-\s])(?:1|2)[:\/x]8(?:[_\-\s]|$)/i.test(fullText);
+  const hasExplicit16InText =
+    /(?:^|[_\-\s])16[_\-\s]*(?:lines?|ports?|p)(?:[_\-\s]|$)/i.test(fullText) ||
+    /(?:^|[_\-\s])(?:1|2)[:\/x]16(?:[_\-\s]|$)/i.test(fullText);
+
+  if (hasExplicit8InText && !hasExplicit16InText) return 8;
+  if (hasExplicit16InText && !hasExplicit8InText) return 16;
+
+  // 4. LCP heuristics (non-lcp is 8 lines, lcp is 16 lines)
+  if (/\bnon[_\-\s]*lcp\b/i.test(fullText)) return 8;
+  if (/\blcp\b/i.test(fullText)) return 16;
+
+  // 5. Fallback naming convention: N02, N03... are 8 lines; N01 is 16 lines ONLY if no other line count specified
+  if (/(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?([2-9]|\d{2,})(?:[_\-\s]|$)/i.test(name)) return 8;
+  if (/(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(name)) return 16;
+
+  return 8;
+}
+
 export function extractHldProposedNapsFromPlacemarks(placemarks: Placemark[]): HldProposedNapItem[] {
   const result: HldProposedNapItem[] = [];
   placemarks.forEach((p, idx) => {
@@ -7019,15 +7084,11 @@ export function extractHldProposedNapsFromPlacemarks(placemarks: Placemark[]): H
       const isDummy = isDummyNapIdentifier(p.name, folder) || status === "DUMMY";
       const isExisting = hasExistingNapIdentifier(searchable) || status === "EXISTING";
       if (!isDummy && !isExisting) {
-        const is16 =
-          /(\b|_)(16[\s\-_]*(?:lines?|ports?|p)|1[:\/x]16|2[:\/x]16)(\b|_)/i.test(searchable) ||
-          /(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(searchable) ||
-          /\b(?<!non[\s\-_]*)lcp\b/i.test(searchable);
         result.push({
           id: p.id || `hld-nap-${idx}`,
           name: p.name || `Proposed NAP ${idx + 1}`,
           coordinates: p.geometry.coordinates,
-          napLines: is16 ? 16 : 8,
+          napLines: resolveHldProposedNapLines(p),
         });
       }
     }
@@ -10772,7 +10833,11 @@ function App() {
           id: n.id,
           name: n.name || n.napId || "Proposed NAP",
           coordinates: (n.geometry as Extract<Geometry, { type: "Point" }>).coordinates,
-          napLines: (n.ports === 16 || n.splitter === "1:16" || n.splitter === "2:16" ? 16 : 8) as 8 | 16,
+          napLines: resolveHldProposedNapLines({
+            name: n.name || n.napId,
+            description: n.description,
+            properties: n.properties,
+          }),
         }));
       }
     }
@@ -11501,14 +11566,7 @@ function App() {
           const isDummy = isDummyNapIdentifier(p.name, folder) || isDummyNapFolder(folder) || isDummyNapFolder(folderChain);
           const isExisting = hasExistingNapIdentifier(text) || hasExistingNapIdentifier(folder) || hasExistingNapIdentifier(folderChain);
           const isOlt = /\bolt\b|\bpoi\b/i.test(text) && !isNapEntity(p.name, folder);
-          const inProposedFolder = isProposedNapFolder(folder) || isProposedNapFolder(folderChain);
-          const is8 =
-            /(\b|_)(8[\s\-_]*(?:lines?|ports?|p)|1[:\/x]8|2[:\/x]8)(\b|_)/i.test(text) ||
-            (!(
-              /(\b|_)(16[\s\-_]*(?:lines?|ports?|p)|1[:\/x]16|2[:\/x]16)(\b|_)/i.test(text) ||
-              /(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(text)
-            ) &&
-              /(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?[2-9](?:[_\-\s]|$)/i.test(text));
+          const lines = resolveHldProposedNapLines(p);
           const detectedStatus = detectNapStatus(text, folder);
           const status: "PROPOSED" | "EXISTING" | "DUMMY" | "OLT" = isOlt
             ? "OLT"
@@ -11522,7 +11580,7 @@ function App() {
             name: p.name || `NAP-${idx + 1}`,
             lat: p.geometry.coordinates.lat,
             lon: p.geometry.coordinates.lon,
-            lines: is8 ? 8 : 16,
+            lines,
             status,
           });
         } else if (p.geometry.type === "LineString") {
