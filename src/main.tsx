@@ -55,16 +55,21 @@ type Placemark = {
   geometry: Geometry;
 };
 
-export type TelcoProvider = "globe" | "pldt" | "pldt_legacy";
+export type TelcoProvider = "globe" | "globe_mapsme" | "pldt" | "pldt_legacy";
 
 export function isPldtProvider(provider?: TelcoProvider): boolean {
   return provider === "pldt" || provider === "pldt_legacy";
 }
 
+export function isMapsMeProvider(provider?: TelcoProvider): boolean {
+  return provider === "globe_mapsme";
+}
+
 export function formatProviderLabel(provider?: TelcoProvider): string {
   if (provider === "pldt") return "PLDT / Smart (Structured)";
   if (provider === "pldt_legacy") return "PLDT / Smart (Legacy)";
-  return "Globe Telecom";
+  if (provider === "globe_mapsme") return "Globe (Maps.me)";
+  return "Globe (ISDP)";
 }
 
 type LayerName =
@@ -564,6 +569,14 @@ function extractProperties(placemark: Element) {
     properties._styleUrl = styleUrl;
   }
 
+  if (
+    placemark.getElementsByTagName("mwm:name").length > 0 ||
+    placemark.getElementsByTagName("mwm:customName").length > 0 ||
+    placemark.getElementsByTagName("mwm:lastModified").length > 0
+  ) {
+    properties._mwm = "true";
+  }
+
   return properties;
 }
 
@@ -593,11 +606,19 @@ function parseKml(kmlText: string): Placemark[] {
     throw new Error("The selected file contains invalid KML XML.");
   }
 
+  const isMwmDoc = /<mwm:/i.test(kmlText);
   const placemarks: Placemark[] = [];
   Array.from(doc.getElementsByTagName("Placemark")).forEach((placemark, index) => {
-    const name = textOf(placemark, "name") || `Placemark ${index + 1}`;
-    const description = textOf(placemark, "description");
+    const name =
+      textOf(placemark, "name") ||
+      textOf(placemark, "mwm:customName") ||
+      textOf(placemark, "mwm:name") ||
+      `Placemark ${index + 1}`;
+    const description = textOf(placemark, "description") || textOf(placemark, "mwm:description");
     const properties = extractProperties(placemark);
+    if (isMwmDoc) {
+      properties._mwm = "true";
+    }
 
     let folderName = "";
     const folderChain: string[] = [];
@@ -675,7 +696,164 @@ function parseKml(kmlText: string): Placemark[] {
   return placemarks;
 }
 
+export type MapsMePoleComponents = {
+  kind: "PROPOSED" | "TELCO" | "ELECTRIC";
+  owner: string;
+  poleCode: string;
+  poleNo: string;
+  poleType: "CC" | "ST" | "WO";
+  poleHeight: string;
+};
+
+function mapMapsMeMaterial(mat?: string): "CC" | "ST" | "WO" {
+  if (!mat) return "CC";
+  const l = mat.toLowerCase();
+  if (l.startsWith("w")) return "WO";
+  if (l.startsWith("s") || l === "gi" || l === "me") return "ST";
+  return "CC";
+}
+
+export function looksLikeMapsMePoleName(name: string): boolean {
+  const rawName = (name || "").trim();
+  if (!rawName) return false;
+  if (/^p(?:rop(?:osed)?)?[-_\s]*(?:7(?:\.5)?|8|9(?:\.14)?|10|11|12)m?(?:[-_\s]*(?:cc|st|wd|wo|wp|gi))?(?:\b|$)/i.test(rawName)) {
+    return true;
+  }
+  if (/^(?:globe|innove|pldt|smart|converge|conv|dito|etpi|telof|gt|gl|pt|ic|cv)(?:[-_\s]+|(?=(?:npt?|\d)))(.+)$/i.test(rawName)) {
+    return true;
+  }
+  if (/^(?:[A-Za-z0-9\-_]+?)[-_\s]*(?:(?:cc|st|wd|wo|wp|gi|sc)[-_\s]*(?:7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)?m?|(?:s|w)[-_\s]*(?:7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)m?)(?:\b|$)/i.test(rawName)) {
+    return true;
+  }
+  if (/^(?:ep[-_\s]*)?npt?(?:[-_\s]*(?:7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)m?)?$/i.test(rawName)) {
+    return true;
+  }
+  if (/^\d{4,10}$/.test(rawName)) {
+    return true;
+  }
+  return false;
+}
+
+export function parseMapsMePoleComponents(placemarkOrName: Placemark | string): MapsMePoleComponents {
+  const rawName = (typeof placemarkOrName === "string" ? placemarkOrName : placemarkOrName.name || "").trim();
+
+  // 1. Proposed Pole (e.g., "p7", "p9", "P9 proposed 72F closure", "p-7", "p7cc")
+  const propMatch = rawName.match(
+    /^p(?:rop(?:osed)?)?[-_\s]*(7(?:\.5)?|8|9(?:\.14)?|10|11|12)m?(?:[-_\s]*(cc|st|wd|wo|wp|gi))?(?:\b|$)/i,
+  );
+  if (propMatch) {
+    const hToken = propMatch[1];
+    const poleHeight = hToken.startsWith("7")
+      ? "7.5m"
+      : hToken.startsWith("8")
+        ? "8.0m"
+        : hToken.startsWith("9")
+          ? "9.0m"
+          : `${hToken}.0m`;
+    return {
+      kind: "PROPOSED",
+      owner: "PROPOSED",
+      poleCode: "G",
+      poleNo: "PROPOSED POLE",
+      poleType: mapMapsMeMaterial(propMatch[2]),
+      poleHeight,
+    };
+  }
+
+  // 2. Telco Pole (e.g., "ptnptcc9", "ptnptcc7", "Globenpt9", "pt12345cc9", "gtnptcc9")
+  const telcoMatch = rawName.match(
+    /^(globe|innove|pldt|smart|converge|conv|dito|etpi|telof|gt|gl|pt|ic|cv)(?:[-_\s]+|(?=(?:npt?|\d)))(.+)$/i,
+  );
+  if (telcoMatch) {
+    const rawPrefix = telcoMatch[1].toLowerCase();
+    let rem = telcoMatch[2].trim();
+    let owner = "GLOBE";
+    let prefix = "GT";
+    let poleCode = "G";
+    if (rawPrefix === "pt" || rawPrefix === "pldt" || rawPrefix === "smart") {
+      owner = "PLDT";
+      prefix = "PT";
+      poleCode = "P";
+    } else if (rawPrefix === "ic" || rawPrefix === "innove") {
+      owner = "INNOVE";
+      prefix = "IC";
+      poleCode = "I";
+    } else if (rawPrefix === "cv" || rawPrefix === "conv" || rawPrefix === "converge") {
+      owner = "CONVERGE";
+      prefix = "C";
+      poleCode = "C";
+    } else if (rawPrefix === "dito") {
+      owner = "DITO";
+      prefix = "DITO";
+      poleCode = "D";
+    } else if (rawPrefix === "etpi") {
+      owner = "ETPI";
+      prefix = "ETPI";
+      poleCode = "E";
+    } else if (rawPrefix === "telof") {
+      owner = "TELOF";
+      prefix = "TELOF";
+      poleCode = "T";
+    }
+
+    let poleType: "CC" | "ST" | "WO" = "CC";
+    const tailMatch = rem.match(
+      /^([A-Za-z0-9\-_]+?)[-_\s]*(?:(cc|st|wd|wo|wp|gi|sc)[-_\s]*(7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)?m?|(s|w)[-_\s]*(7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)m?)(?:\b|$)/i,
+    );
+    if (tailMatch && tailMatch[1]) {
+      rem = tailMatch[1].trim();
+      poleType = mapMapsMeMaterial(tailMatch[2] || tailMatch[4]);
+    } else {
+      const nptHeight = rem.match(/^(npt?)[-_\s]*(7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)m?(?:\b|$)/i);
+      if (nptHeight) {
+        rem = "NPT";
+      } else {
+        rem = rem.split(/\s+/)[0] || "NPT";
+      }
+    }
+    const tag = !rem || /^npt?$/i.test(rem) ? "NPT" : rem.toUpperCase();
+    return {
+      kind: "TELCO",
+      owner,
+      poleCode,
+      poleNo: `${prefix} - ${tag}`,
+      poleType,
+      poleHeight: "9.0m",
+    };
+  }
+
+  // 3. Electric Pole (e.g., "1202751cc9", "nptst9", "npst11", "1202765s11", "1202771wd9", "12027XXst9", "XXXXX42wd9", "1202576")
+  let tagRaw = rawName;
+  let poleType: "CC" | "ST" | "WO" = "CC";
+  const elecMatch = rawName.match(
+    /^([A-Za-z0-9\-_]+?)[-_\s]*(?:(cc|st|wd|wo|wp|gi|sc)[-_\s]*(7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)?m?|(s|w)[-_\s]*(7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)m?)(?:\b|$)/i,
+  );
+  if (elecMatch && elecMatch[1]) {
+    tagRaw = elecMatch[1].trim();
+    poleType = mapMapsMeMaterial(elecMatch[2] || elecMatch[4]);
+  } else {
+    const nptHeight = rawName.match(/^(?:ep[-_\s]*)?(npt?)[-_\s]*(7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)m?(?:\b|$)/i);
+    if (nptHeight) {
+      tagRaw = "NPT";
+    } else {
+      tagRaw = rawName.split(/\s+/)[0] || "NPT";
+    }
+  }
+  const poleNo = /^(?:ep[-_\s]*)?npt?$/i.test(tagRaw) ? "NPT" : tagRaw.toUpperCase();
+  return {
+    kind: "ELECTRIC",
+    owner: "ELECTRIC",
+    poleCode: "G",
+    poleNo,
+    poleType,
+    poleHeight: "9.0m",
+  };
+}
+
 function hasPtIdentification(placemark: Placemark): boolean {
+  if (placemark.properties?._mapsMeKind) {
+    return placemark.properties._mapsMeKind === "TELCO" && placemark.properties._mapsMeOwner === "PLDT";
+  }
   const explicitOwner = normalize(
     findProperty(placemark.properties, ["owner", "provider", "company", "telco", "pole owner", "pole_owner", "classification"]),
   );
@@ -733,8 +911,35 @@ function classifyPlacemark(
     placemark.name;
 
   if (placemark.geometry.type === "Point") {
-    const layer = determinePoleLayer(placemark, provider, electricUtility);
-    return { ...placemark, layer, poleId };
+    let workingPlacemark = placemark;
+    if (provider === "globe_mapsme") {
+      const mm = parseMapsMePoleComponents(placemark);
+      workingPlacemark = {
+        ...placemark,
+        properties: {
+          ...placemark.properties,
+          _mapsMe: "true",
+          _mapsMeKind: mm.kind,
+          _mapsMeOwner: mm.owner,
+          _mapsMePoleCode: mm.poleCode,
+          _mapsMePoleNo: mm.poleNo,
+          _mapsMePoleType: mm.poleType,
+          _mapsMePoleHeight: mm.poleHeight,
+        },
+      };
+    } else if (placemark.properties._mapsMe) {
+      const nextProps = { ...placemark.properties };
+      delete nextProps._mapsMe;
+      delete nextProps._mapsMeKind;
+      delete nextProps._mapsMeOwner;
+      delete nextProps._mapsMePoleCode;
+      delete nextProps._mapsMePoleNo;
+      delete nextProps._mapsMePoleType;
+      delete nextProps._mapsMePoleHeight;
+      workingPlacemark = { ...placemark, properties: nextProps };
+    }
+    const layer = determinePoleLayer(workingPlacemark, provider, electricUtility);
+    return { ...workingPlacemark, layer, poleId };
   }
 
   const folder = placemark.properties.Folder || placemark.properties._folder || "";
@@ -1635,6 +1840,9 @@ function cleanFieldValue(value: string) {
 }
 
 function formatPoleType(properties: Record<string, string>) {
+  if (properties._mapsMePoleType) {
+    return properties._mapsMePoleType;
+  }
   // Pole material attributes in the KMZ determine the pole type (Concrete -> CC, Metal/Steel -> ST, Wood -> WO)
   const material = normalize(
     findProperty(properties, ["material", "pole material", "pole_material", "material / size", "material/size", "materialsize"]),
@@ -1662,6 +1870,9 @@ function formatRawPoleType(properties: Record<string, string>) {
 }
 
 function isProposedPole(placemark: Placemark) {
+  if (placemark.properties?._mapsMeKind) {
+    return placemark.properties._mapsMeKind === "PROPOSED";
+  }
   const category = normalize(findProperty(placemark.properties, ["pole category(new or existing)", "pole category", "category", "status", "pole status"]));
   if (category.includes("new") || category.includes("proposed") || category.includes("propose")) return true;
   if (category === "existing" || category === "exist") return false;
@@ -1683,6 +1894,17 @@ function isProposedPole(placemark: Placemark) {
     nameDesc.includes("for installation") ||
     /^p(?:rop)?[-_\s]*\d+/i.test(placemark.name.trim())
   );
+}
+
+function resolveGlobeProposedPoleHeight(placemark: Placemark): string {
+  if (placemark.properties?._mapsMePoleHeight) {
+    return placemark.properties._mapsMePoleHeight;
+  }
+  const rawName = (placemark.name || "").trim();
+  if (/^p(?:rop)?[-_\s]*7(?:\b|$)/i.test(rawName)) {
+    return "7.5m";
+  }
+  return "9.0m";
 }
 
 function poleTemplateFields(placemark: Placemark & { poleId?: string }) {
@@ -1736,6 +1958,9 @@ function formatTelcoPoleTag(rawTag: string, owner: string) {
 /** Resolves the real survey pole tag from properties (e.g. "51X64", "51344", "GT - 1022", "PT - NPT", "IC - 006", "DITO - NPT"). */
 function rawPoleTag(placemark: Placemark) {
   if (isProposedPole(placemark)) return "PROPOSED POLE";
+  if (placemark.properties?._mapsMePoleNo) {
+    return placemark.properties._mapsMePoleNo;
+  }
 
   const suppliedTag = cleanFieldValue(
     findProperty(placemark.properties, [
@@ -1838,6 +2063,21 @@ function rawPoleStencilPlacements(placemarks: ClassifiedPlacemark[]) {
 function detectPoleOwner(placemark: Placemark): string {
   const explicitOwner = normalize(findProperty(placemark.properties, ["owner", "provider", "company", "telco", "pole owner", "pole_owner", "classification"]));
 
+  if (placemark.properties?._mapsMeKind) {
+    if (placemark.properties._mapsMeKind === "TELCO") {
+      return placemark.properties._mapsMeOwner || "GLOBE";
+    }
+    if (placemark.properties._mapsMeKind === "PROPOSED") {
+      return "OTHER";
+    }
+    if (explicitOwner) {
+      for (const [key, code] of Object.entries(electricCoopAliases)) {
+        if (explicitOwner.includes(key)) return code;
+      }
+    }
+    return "ELECTRIC";
+  }
+
   if (explicitOwner) {
     for (const [key, code] of Object.entries(electricCoopAliases)) {
       if (explicitOwner.includes(key)) return code;
@@ -1885,6 +2125,9 @@ function detectPoleOwner(placemark: Placemark): string {
 }
 
 function isElectricPole(placemark: Placemark): boolean {
+  if (placemark.properties?._mapsMeKind) {
+    return placemark.properties._mapsMeKind === "ELECTRIC";
+  }
   if (isProposedPole(placemark)) return false;
 
   const owner = detectPoleOwner(placemark);
@@ -1956,6 +2199,9 @@ export function determinePoleLayer(
 }
 
 function detectPoleCode(placemark: Placemark): string {
+  if (placemark.properties?._mapsMePoleCode) {
+    return placemark.properties._mapsMePoleCode;
+  }
   const owner = detectPoleOwner(placemark);
   if (owner === "INNOVE") return "I";
   if (owner === "GLOBE") return "G";
@@ -1984,7 +2230,7 @@ function poleBlockName(placemark: ClassifiedPlacemark, blockPrefix = "") {
 function renderPoleLabel(placemark: ClassifiedPlacemark, standard: PoleStandard) {
   const fields = poleTemplateFields(placemark);
   if (isProposedPole(placemark)) {
-    return [fields.poleNo, fields.poleType, "9.0m", `${fields.latitude},${fields.longitude}`].filter(Boolean).join("\n");
+    return [fields.poleNo, fields.poleType, resolveGlobeProposedPoleHeight(placemark), `${fields.latitude},${fields.longitude}`].filter(Boolean).join("\n");
   }
   return standard.labelTemplate.replace(/\{([^}]+)\}/g, (_, fieldName: string) => {
     const key = fieldName.trim() as keyof typeof fields;
@@ -4690,7 +4936,7 @@ export function previewPoleStencilAttributes(
     return { blockName: "NEW_ELECTRIC_SYSMBOL", line1: epValue, line2: leg.ccVal, clamp };
   }
   const isElectric = !isProposed && isElectricPole(placemark);
-  if (isProposed) return { blockName: "P-POLE", line1: "PROPOSED POLE", line2: `${formatRawPoleType(placemark.properties)} • 9.0m` };
+  if (isProposed) return { blockName: "P-POLE", line1: "PROPOSED POLE", line2: `${formatRawPoleType(placemark.properties)} • ${resolveGlobeProposedPoleHeight(placemark)}` };
   if (isElectric) return { blockName: "EPOLE", line1: rawPoleTag(placemark), line2: formatRawPoleType(placemark.properties) };
   return { blockName: "PTPOLE", line1: rawPoleTag(placemark), line2: formatRawPoleType(placemark.properties) };
 }
@@ -5499,13 +5745,14 @@ function entityBlockInsertWithAttributes(
   } else if (blockName === "P-POLE") {
     const poleNo = rawPoleTag(placemark) || "PROPOSED POLE";
     const poleType = formatRawPoleType(placemark.properties);
+    const poleHeight = resolveGlobeProposedPoleHeight(placemark);
     const uy1 = slotY === "above" ? 7.0631 : 1.8500;
     const uy2 = slotY === "above" ? 4.0170 : -1.1337;
     const uy3 = slotY === "above" ? 1.1337 : -4.0170;
     const uy4 = slotY === "above" ? -1.8500 : -7.0631;
     const p1 = globeAttrPlacement(2.3375, uy1, poleNo, 2.0);
     const p2 = globeAttrPlacement(2.3375, uy2, poleType, 2.0);
-    const p3 = globeAttrPlacement(2.3375, uy3, "9.0m", 2.0);
+    const p3 = globeAttrPlacement(2.3375, uy3, poleHeight, 2.0);
     const p4 = globeAttrPlacement(2.3375, uy4, latLonStr, 2.0);
 
     // ATTRIB POLNO (Line 1: PROPOSED POLE)
@@ -5572,7 +5819,7 @@ function entityBlockInsertWithAttributes(
       ].join("\n"),
     );
 
-    // ATTRIB POLHYT (Line 3: 9.0m)
+    // ATTRIB POLHYT (Line 3: 7.5m / 9.0m)
     entities.push(
       [
         dxfPair(0, "ATTRIB"),
@@ -5585,7 +5832,7 @@ function entityBlockInsertWithAttributes(
         dxfPair(20, cadCoord(p3.startPt.y)),
         dxfPair(30, cadCoord(p3.startPt.z)),
         dxfPair(40, cadSize(2.0 * scale)),
-        dxfPair(1, "9.0m"),
+        dxfPair(1, sanitizeDxfText(poleHeight)),
         dxfPair(50, rotStr),
         dxfPair(7, "ROMANS"),
         ...(sideX < 0
@@ -7061,10 +7308,56 @@ export function resolveHldProposedNapLines(
   if (/\blcp\b/i.test(fullText)) return 16;
 
   // 5. Fallback naming convention: N02, N03... are 8 lines; N01 is 16 lines ONLY if no other line count specified
-  if (/(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?([2-9]|\d{2,})(?:[_\-\s]|$)/i.test(name)) return 8;
-  if (/(?:^|[_\-\s])(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(name)) return 16;
+  if (/(?:^|[_\-\s]|L\d+)(?:N|NAP)[_\-\s]*0?([2-9]|\d{2,})(?:[_\-\s]|$)/i.test(name)) return 8;
+  if (/(?:^|[_\-\s]|L\d+)(?:N|NAP)[_\-\s]*0?1(?:[_\-\s]|$)/i.test(name)) return 16;
 
   return 8;
+}
+
+export function isOdnEquipmentOrNapPoint(p: Placemark): boolean {
+  if (p.geometry.type !== "Point") return false;
+  const rawName = (p.name || "").trim();
+  const folder = (p.properties?.Folder || p.properties?._folder || "").trim();
+  const folderChain = (p.properties?._folderChain || folder).trim();
+  if (/\bpoles?\b/i.test(folderChain) && looksLikeMapsMePoleName(rawName)) {
+    return false;
+  }
+  if (isStandardNapIdentifier(rawName) || isNapEntity(rawName, folderChain)) return true;
+  if (/^(?:xbox|hub\s*box|hubbox|closure|proposed\s+\d+\s*f\s+closure|olt|odf)\b/i.test(rawName)) return true;
+  if (/\b(?:xbox|hubbox|hub\s*box)\b/i.test(rawName) && !/^p(?:rop)?[-_\s]*[79]\b/i.test(rawName)) return true;
+  if (/^[A-Z]{3}\d{1,4}$/i.test(rawName) && !/\bpoles?\b/i.test(folderChain)) return true;
+  return false;
+}
+
+export function filterPoleSurveyPlacemarks(parsed: Placemark[]): Placemark[] {
+  const hasDedicatedPolesFolder = parsed.some(
+    (p) => p.geometry.type === "Point" && /\bpoles?\b/i.test(p.properties?._folderChain || p.properties?.Folder || ""),
+  );
+  const isMapsMeFile = parsed.some((p) => p.properties?._mwm === "true");
+
+  return parsed.filter((p) => {
+    if (p.geometry.type === "Point") {
+      if (isOdnEquipmentOrNapPoint(p)) return false;
+      if (hasDedicatedPolesFolder) {
+        const fc = p.properties?._folderChain || p.properties?.Folder || "";
+        if (!/\bpoles?\b/i.test(fc) && !looksLikeMapsMePoleName(p.name || "")) {
+          return false;
+        }
+      }
+      return true;
+    }
+    if (p.geometry.type === "LineString" && (hasDedicatedPolesFolder || isMapsMeFile)) {
+      const fc = p.properties?._folderChain || p.properties?.Folder || "";
+      const rawName = (p.name || "").trim();
+      const isSchematicHldLine =
+        (!/\bpoles?\b/i.test(fc) && hasDedicatedPolesFolder) ||
+        /^(?:\d+\s*f|\d*\s*c|untitled\s*path)$/i.test(rawName);
+      if (isSchematicHldLine) {
+        return false;
+      }
+    }
+    return true;
+  });
 }
 
 export function extractHldProposedNapsFromPlacemarks(placemarks: Placemark[]): HldProposedNapItem[] {
@@ -7103,7 +7396,49 @@ export function extractHldProposedNapsFromPlacemarks(placemarks: Placemark[]): H
     return isProposedNapFolder(f) || isProposedNapFolder(fc);
   });
 
-  return strictlyUnderFolder.length > 0 ? strictlyUnderFolder : result;
+  if (strictlyUnderFolder.length > 0) return strictlyUnderFolder;
+  if (result.length > 0) return result;
+
+  // Fallback for combined ODN / Maps.me KMZ files where Proposed NAP pins (e.g. MIN71_L901N67) are at root level
+  const surveyPolePoints = placemarks.filter((p): p is Placemark & { geometry: { type: "Point"; coordinates: LonLat } } => {
+    if (p.geometry.type !== "Point") return false;
+    const fc = p.properties.Folder || p.properties._folderChain || p.properties._folder || "";
+    return /\bpoles?\b/i.test(fc) || (!isStandardNapIdentifier(p.name) && looksLikeMapsMePoleName(p.name));
+  });
+
+  const fallbackNaps: HldProposedNapItem[] = [];
+  placemarks.forEach((p, idx) => {
+    if (p.geometry.type !== "Point") return;
+    const rawName = (p.name || "").trim();
+    const folder = p.properties.Folder || p.properties._folder || "";
+    const folderChain = p.properties._folderChain || folder;
+    if (/\bpoles?\b/i.test(folderChain)) return;
+    if (!isStandardNapIdentifier(rawName)) return;
+
+    const searchable = `${rawName} ${folder} ${folderChain} ${p.description || ""}`;
+    const status = detectNapStatus(searchable, folder);
+    const isDummy = isDummyNapIdentifier(rawName, folder) || status === "DUMMY";
+    const isExisting = hasExistingNapIdentifier(searchable) || status === "EXISTING";
+    if (isDummy || isExisting) return;
+
+    if (surveyPolePoints.length > 0) {
+      const napMerc = lonLatToWgs84Mercator(p.geometry.coordinates);
+      const nearSurveyPole = surveyPolePoints.some((pole) => {
+        const poleMerc = lonLatToWgs84Mercator(pole.geometry.coordinates);
+        return Math.hypot(napMerc.x - poleMerc.x, napMerc.y - poleMerc.y) <= 150;
+      });
+      if (!nearSurveyPole) return;
+    }
+
+    fallbackNaps.push({
+      id: p.id || `hld-nap-fallback-${idx}`,
+      name: rawName || `Proposed NAP ${idx + 1}`,
+      coordinates: p.geometry.coordinates,
+      napLines: resolveHldProposedNapLines(p),
+    });
+  });
+
+  return fallbackNaps;
 }
 
 function buildProposedNapResLotBoxesEntities(
@@ -7959,7 +8294,7 @@ function createDxf(
         usesRawCoordinates,
         textStyle,
         cableSpanStandard.allowanceMeters,
-        120.0,
+        130.0,
         telcoProvider,
         poleStandard.includeSpanMeasurements !== false,
       );
@@ -10286,10 +10621,11 @@ async function downloadDwg(
 
   let response: Response;
   try {
+    const backendProvider = options.telcoProvider && isPldtProvider(options.telcoProvider) ? options.telcoProvider : "globe";
     response = await fetch("/api/convert-dwg", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileName, dxf, ...options }),
+      body: JSON.stringify({ fileName, dxf, ...options, telcoProvider: backendProvider }),
     });
   } catch {
     throw new Error("Could not reach the DWG converter. Keep the local app server running and try again.");
@@ -11235,8 +11571,15 @@ function App() {
         const f = p.properties.Folder || p.properties._folder || "";
         return isNapEntity(p.name, f);
       };
-      const poleOnlyParsed = autoHldNaps.length > 0 ? parsed.filter((p) => !isHldNapPoint(p)) : parsed;
-      const placemarks = poleOnlyParsed.map((p) => classifyPlacemark(p, telcoProvider, poleStandard.electricUtility));
+      const isMapsMeDetected = parsed.some((p) => p.properties._mwm === "true");
+      const activeProvider: TelcoProvider =
+        isMapsMeDetected && telcoProvider === "globe" ? "globe_mapsme" : telcoProvider;
+      if (activeProvider !== telcoProvider) {
+        setTelcoProvider(activeProvider);
+      }
+      const filteredSurvey = filterPoleSurveyPlacemarks(parsed);
+      const poleOnlyParsed = autoHldNaps.length > 0 ? filteredSurvey.filter((p) => !isHldNapPoint(p)) : filteredSurvey;
+      const placemarks = poleOnlyParsed.map((p) => classifyPlacemark(p, activeProvider, poleStandard.electricUtility));
       const center = calculateCenter(collectCoordinates(poleOnlyParsed.length ? poleOnlyParsed : parsed));
       const { dxf, zone } = createDxf(
         placemarks,
@@ -11245,12 +11588,12 @@ function App() {
         poleStandard,
         coordinateMode,
         "STANDARD",
-        telcoProvider,
+        activeProvider,
         roadStandard,
         cableStandard,
         effectiveHldNaps,
       );
-      setResult({ fileName: source.fileName, kmlNames: source.kmlTexts.map((kml) => kml.name), placemarks, center, zone, dxf, provider: telcoProvider });
+      setResult({ fileName: source.fileName, kmlNames: source.kmlTexts.map((kml) => kml.name), placemarks, center, zone, dxf, provider: activeProvider });
       const poles = placemarks.filter((p) => p.geometry.type === "Point");
       const layerBreakdown = poles.reduce<Record<string, number>>((acc, p) => {
         acc[p.layer] = (acc[p.layer] || 0) + 1;
@@ -11262,7 +11605,7 @@ function App() {
       void logClientUsageEvent({
         event: "KMZ_CONVERT",
         mode: "pole_survey",
-        provider: telcoProvider,
+        provider: activeProvider,
         fileName: source.fileName,
         itemCount: placemarks.length,
         summary: `Pole Survey KMZ converted (${poles.length} poles [${breakdownStr}], ${placemarks.length} total objects)`,
@@ -12248,16 +12591,17 @@ function App() {
                   style={{
                     fontSize: "12px",
                     fontWeight: 600,
-                    color: telcoProvider === "pldt" ? "#dc2626" : telcoProvider === "pldt_legacy" ? "#ea580c" : "#2563eb",
+                    color: telcoProvider === "pldt" ? "#dc2626" : telcoProvider === "pldt_legacy" ? "#ea580c" : telcoProvider === "globe_mapsme" ? "#0284c7" : "#2563eb",
                   }}
                 >
                   {formatProviderLabel(telcoProvider)} Active
                 </span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 <button
                   type="button"
                   onClick={() => updateTelcoProvider("globe")}
+                  title="Standard Globe ISDP structured KMZ converter"
                   style={{
                     padding: "9px 10px",
                     borderRadius: "8px",
@@ -12275,7 +12619,30 @@ function App() {
                   }}
                 >
                   <span>🔵</span>
-                  <span>Globe Telecom</span>
+                  <span>Globe (ISDP)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateTelcoProvider("globe_mapsme")}
+                  title="Globe Maps.me unstructured pole KMZ converter (e.g. 1202751cc9, ptnptcc9, p7, p9)"
+                  style={{
+                    padding: "9px 10px",
+                    borderRadius: "8px",
+                    border: telcoProvider === "globe_mapsme" ? "2px solid #0284c7" : "1px solid var(--border-soft)",
+                    background: telcoProvider === "globe_mapsme" ? "rgba(2, 132, 199, 0.12)" : "var(--bg-panel)",
+                    color: telcoProvider === "globe_mapsme" ? "#0284c7" : "var(--text-main)",
+                    fontWeight: telcoProvider === "globe_mapsme" ? 700 : 500,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "5px",
+                    fontSize: "12.5px",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  <span>🌐</span>
+                  <span>Globe (Maps.me)</span>
                 </button>
                 <button
                   type="button"
@@ -12582,10 +12949,11 @@ function App() {
             <div style={{ marginBottom: "14px" }}>
               <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", fontWeight: 600, color: "var(--text-main)" }}>
                 <span>Telco Provider Standard:</span>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                   <button
                     type="button"
                     onClick={() => updateTelcoProvider("globe")}
+                    title="Standard Globe ISDP structured KMZ converter"
                     style={{
                       padding: "10px 10px",
                       borderRadius: "8px",
@@ -12603,7 +12971,31 @@ function App() {
                     }}
                   >
                     <span style={{ fontSize: "14px" }}>🔵</span>
-                    <span>Globe Telecom</span>
+                    <span>Globe (ISDP)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateTelcoProvider("globe_mapsme")}
+                    title="Globe Maps.me unstructured pole KMZ converter (e.g. 1202751cc9, ptnptcc9, p7, p9)"
+                    style={{
+                      padding: "10px 10px",
+                      borderRadius: "8px",
+                      border: telcoProvider === "globe_mapsme" ? "2px solid #0284c7" : "1px solid var(--border-soft)",
+                      background: telcoProvider === "globe_mapsme" ? "rgba(2, 132, 199, 0.12)" : "var(--bg-elevated)",
+                      color: telcoProvider === "globe_mapsme" ? "#0284c7" : "var(--text-main)",
+                      fontWeight: telcoProvider === "globe_mapsme" ? 700 : 500,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      fontSize: "12.5px",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    <span style={{ fontSize: "14px" }}>🌐</span>
+                    <span>Globe (Maps.me)</span>
                   </button>
 
                   <button
