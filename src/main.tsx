@@ -11574,18 +11574,23 @@ function App() {
       const isMapsMeDetected = parsed.some((p) => p.properties._mwm === "true");
       const activeProvider: TelcoProvider =
         isMapsMeDetected && telcoProvider === "globe" ? "globe_mapsme" : telcoProvider;
+      let effectivePoleStandard = poleStandard;
       if (activeProvider !== telcoProvider) {
         setTelcoProvider(activeProvider);
+        if (activeProvider === "globe_mapsme") {
+          effectivePoleStandard = { ...poleStandard, includeFocCable: false };
+          setPoleStandard(effectivePoleStandard);
+        }
       }
       const filteredSurvey = filterPoleSurveyPlacemarks(parsed);
       const poleOnlyParsed = autoHldNaps.length > 0 ? filteredSurvey.filter((p) => !isHldNapPoint(p)) : filteredSurvey;
-      const placemarks = poleOnlyParsed.map((p) => classifyPlacemark(p, activeProvider, poleStandard.electricUtility));
+      const placemarks = poleOnlyParsed.map((p) => classifyPlacemark(p, activeProvider, effectivePoleStandard.electricUtility));
       const center = calculateCenter(collectCoordinates(poleOnlyParsed.length ? poleOnlyParsed : parsed));
       const { dxf, zone } = createDxf(
         placemarks,
         center,
         source.fileName,
-        poleStandard,
+        effectivePoleStandard,
         coordinateMode,
         "STANDARD",
         activeProvider,
@@ -11958,7 +11963,11 @@ function App() {
       nextMode === "epsg_4326_lon_lat" ||
       nextMode === "raw_lat_lon" ||
       nextMode === "raw_lon_lat";
-    const nextStandard = isRaw ? rawCoordinatePoleStandard : defaultPoleStandard;
+    const baseStandard = isRaw ? rawCoordinatePoleStandard : defaultPoleStandard;
+    const nextStandard: PoleStandard = {
+      ...baseStandard,
+      includeFocCable: poleStandard.includeFocCable,
+    };
     setPoleStandard(nextStandard);
     if (result) {
       const { dxf, zone } = createDxf(
@@ -11996,13 +12005,18 @@ function App() {
       allowanceMeters: nextAllowance,
     };
     setCableStandard(nextCableStandard);
+    const nextPoleStandard: PoleStandard = {
+      ...poleStandard,
+      includeFocCable: nextProvider === "globe_mapsme" ? false : true,
+    };
+    setPoleStandard(nextPoleStandard);
     if (result) {
-      const placemarks = result.placemarks.map((p) => classifyPlacemark(p, nextProvider, poleStandard.electricUtility));
+      const placemarks = result.placemarks.map((p) => classifyPlacemark(p, nextProvider, nextPoleStandard.electricUtility));
       const { dxf, zone } = createDxf(
         placemarks,
         result.center,
         result.fileName,
-        poleStandard,
+        nextPoleStandard,
         coordinateMode,
         "STANDARD",
         nextProvider,
