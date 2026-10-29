@@ -1067,13 +1067,22 @@ function classifyPlacemark(
     let workingPlacemark = placemark;
     if (provider === "globe_mapsme") {
       const mm = parseMapsMePoleComponents(placemark);
+      const configuredCoop = (electricUtility || "AUTO").toUpperCase().trim();
+      const resolvedMapsMeOwner =
+        mm.kind === "ELECTRIC" &&
+        mm.owner === "ELECTRIC" &&
+        configuredCoop &&
+        configuredCoop !== "AUTO" &&
+        configuredCoop !== "GENERIC"
+          ? configuredCoop
+          : mm.owner;
       workingPlacemark = {
         ...placemark,
         properties: {
           ...placemark.properties,
           _mapsMe: "true",
           _mapsMeKind: mm.kind,
-          _mapsMeOwner: mm.owner,
+          _mapsMeOwner: resolvedMapsMeOwner,
           _mapsMePoleCode: mm.poleCode,
           _mapsMePoleNo: mm.poleNo,
           _mapsMePoleType: mm.poleType,
@@ -5797,9 +5806,22 @@ function entityBlockInsertWithAttributes(
       ].join("\n"),
     );
   } else if (blockName === "EPOLE") {
-    let owner = cleanFieldValue(fields.owner) === "OTHER" ? "" : fields.owner;
-    if (!owner && layer !== "EXPOLE" && layer !== "P-POLE 9.14m CC" && layer !== "GLOBE" && layer !== "X-POLE") {
+    let owner = cleanFieldValue(fields.owner);
+    if (owner === "OTHER" || owner === "ELECTRIC") {
+      owner = "";
+    }
+    const isSpecificCoopLayer =
+      layer &&
+      layer !== "EXPOLE" &&
+      layer !== "ELECTRIC POLE" &&
+      layer !== "P-POLE 9.14m CC" &&
+      layer !== "GLOBE" &&
+      layer !== "X-POLE" &&
+      layer !== "PLDT";
+    if (isSpecificCoopLayer) {
       owner = layer;
+    } else if (!owner) {
+      owner = "ELECTRIC";
     }
     const poleNo = rawPoleTag(placemark);
     const poleType = formatRawPoleType(placemark.properties);
