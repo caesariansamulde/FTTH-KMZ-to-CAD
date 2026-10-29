@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telecom Survey Picture to Excel Converter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="static/js/jszip.min.js"></script>
+  <script src="static/js/converter.js"></script>
+  <style>
+    :root {
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      /* Dark Theme (Default) */
+      --bg-body: #0b0f19;
+      --bg-card: #131a2a;
+      --bg-card-hover: #182236;
+      --bg-elevated: #1e293b;
+      --bg-input: #0f1624;
+      --border-main: rgba(255, 255, 255, 0.08);
+      --border-focus: #38bdf8;
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+
+      --primary: #38bdf8;
+      --primary-hover: #0ea5e9;
+      --primary-gradient: linear-gradient(135deg, #0284c7 0%, #38bdf8 50%, #818cf8 100%);
+      
+      --accent: #6366f1;
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.12);
+      --danger: #ef4444;
+      
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+      
+      --shadow-card: 0 10px 30px -5px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-main);
+      --shadow-btn: 0 4px 14px 0 rgba(2, 132, 199, 0.35);
+    }
+
+    /* Light Theme */
+    body.light-mode {
+      --bg-body: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f1f5f9;
+      --bg-elevated: #e2e8f0;
+      --bg-input: #f8fafc;
+      --border-main: #e2e8f0;
+      --border-focus: #0284c7;
+      
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --primary-gradient: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+      
+      --shadow-card: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 0 0 1px var(--border-main);
+      --shadow-btn: 0 4px 12px 0 rgba(2, 132, 199, 0.25);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: var(--font-sans);
+    }
+
+    body {
+      background-color: var(--bg-body);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+      transition: background-color 0.2s ease, color 0.2s ease;
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(56, 189, 248, 0.04) 0%, transparent 40%),
+        radial-gradient(circle at 90% 90%, rgba(99, 102, 241, 0.04) 0%, transparent 40%);
+    }
+
+    /* Layout Container */
+    .app-shell {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+      width: 100%;
+      flex: 1;
+    }
+
+    /* Top Navigation Bar */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
+    }
+
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-sm);
+      background: var(--primary-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: var(--shadow-btn);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .theme-toggle {
+      background: var(--bg-card);
+      border: 1px solid var(--border-main);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+
+    .theme-toggle:hover {
+      color: var(--text-main);
+      background: var(--bg-card-hover);
+    }
+
+    /* Hero Header */
+    .hero-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .hero-title {
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    .hero-subtitle {
+      font-size: 1rem;
+      color: var(--text-muted);
+      max-width: 580px;
+      margin: 0 auto;
+    }
+
+    /* Primary Container Card */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-main);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow: var(--shadow-card);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+    }
+
+    /* Interactive Drop Zone */
+    .dropzone-container {
+      border: 2px dashed rgba(56, 189, 248, 0.35);
+      border-radius: var(--radius-md);
+      padding: 44px 24px;
+      text-align: center;
+      background: rgba(56, 189, 248, 0.02);
+      transition: all 0.2s ease;
+      cursor: pointer;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .dropzone-container:hover, .dropzone-container.drag-over {
+      border-color: var(--primary);
+      background: rgba(56, 189, 248, 0.06);
+      transform: translateY(-2px);
+    }
+
+    .dropzone-icon-bubble {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: rgba(56, 189, 248, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      color: var(--primary);
+      transition: transform 0.2s ease;
+    }
+
+    .dropzone-container:hover .dropzone-icon-bubble {
+      transform: scale(1.08);
+    }
+
+    .dropzone-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text-main);
+    }
+
+    .dropzone-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .btn-group-center {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* Modern Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      padding: 12px 22px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .btn-primary {
+      background: var(--primary-gradient);
+      color: #ffffff;
+      box-shadow: var(--shadow-btn);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      border: 1px solid var(--border-main);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--bg-card-hover);
+      border-color: var(--text-dim);
+    }
+
+    .btn-subtle {
+      background: transparent;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      font-size: 0.85rem;
+    }
+
+    .btn-subtle:hover {
+      color: var(--primary);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none !important;
+    }
+
+
+
+    /* Manual Path Accordion */
+    .manual-toggle-area {
+      text-align: center;
+      margin-top: 14px;
+    }
+
+    .manual-toggle-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 0.84rem;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .manual-toggle-btn:hover {
+      color: var(--text-muted);
+    }
+
+    .manual-path-box {
+      margin-top: 16px;
+      display: none;
+    }
+
+    .manual-path-box.open {
+      display: block;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      gap: 8px;
+    }
+
+    .text-input {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border-main);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-size: 0.9rem;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .text-input:focus {
+      border-color: var(--border-focus);
+    }
+
+    /* Selected Package Preview Card */
+    .preview-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-main);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 24px;
+      display: none;
+    }
+
+    .preview-card.active {
+      display: block;
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+      gap: 16px;
+    }
+
+    .preview-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .preview-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-sm);
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .package-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+      word-break: break-all;
+    }
+
+    .package-path {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      margin-top: 2px;
+      word-break: break-all;
+    }
+
+    .preview-meta-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .meta-tag {
+      background: var(--bg-card);
+      border: 1px solid var(--border-main);
+      border-radius: var(--radius-sm);
+      padding: 5px 10px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+
+    .meta-tag.success {
+      border-color: rgba(16, 185, 129, 0.3);
+      color: var(--success);
+      background: var(--success-bg);
+    }
+
+    /* Advanced Settings Collapsible */
+    .advanced-settings-box {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-main);
+    }
+
+    .advanced-toggle {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      background: none;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0;
+    }
+
+    .advanced-toggle:hover {
+      color: var(--text-muted);
+    }
+
+    .advanced-content {
+      margin-top: 12px;
+      display: none;
+    }
+
+    .advanced-content.open {
+      display: block;
+    }
+
+    /* Progress Stage View */
+    .progress-view {
+      display: none;
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .progress-view.active {
+      display: block;
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    .progress-spinner-box {
+      margin-bottom: 20px;
+      position: relative;
+      display: inline-block;
+    }
+
+    .spinner-ring {
+      width: 64px;
+      height: 64px;
+      border: 4px solid rgba(56, 189, 248, 0.15);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .progress-pct-display {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--primary);
+      font-family: var(--font-mono);
+      margin-bottom: 6px;
+    }
+
+    .progress-msg-display {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 24px;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 10px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin-bottom: 28px;
+      border: 1px solid var(--border-main);
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--primary-gradient);
+      border-radius: var(--radius-full);
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Stepper Cards */
+    .stepper-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    @media (max-width: 640px) {
+      .stepper-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .step-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-main);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      opacity: 0.5;
+      transition: all 0.2s ease;
+    }
+
+    .step-card.active {
+      opacity: 1;
+      border-color: var(--primary);
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    .step-card.done {
+      opacity: 1;
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .step-number {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .step-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .elapsed-timer {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+
+    /* Results Dashboard View */
+    .results-view {
+      display: none;
+    }
+
+    .results-view.active {
+      display: block;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .success-hero {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(56, 189, 248, 0.08) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .success-icon-badge {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--success);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    }
+
+    .success-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .success-filename {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      word-break: break-all;
+    }
+
+    .metrics-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .metric-item {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-main);
+      border-radius: var(--radius-md);
+      padding: 16px 12px;
+      text-align: center;
+    }
+
+    .metric-number {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      margin-bottom: 2px;
+    }
+
+    .metric-caption {
+      font-size: 0.74rem;
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* Warning Collapsible */
+    .qa-notice-box {
+      background: var(--warning-bg);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 24px;
+      font-size: 0.88rem;
+      display: none;
+    }
+
+    .qa-notice-title {
+      color: #fbbf24;
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .qa-notice-list {
+      margin-left: 20px;
+      color: var(--text-main);
+      font-size: 0.84rem;
+      margin-top: 6px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .results-cta-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* Subtle Footer */
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: var(--text-dim);
+      font-size: 0.82rem;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-shell">
+    <!-- Navigation -->
+    <header class="top-nav">
+      <div class="brand-logo">
+        <div class="brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+        </div>
+        <span>Excel Picture Embedder</span>
+      </div>
+      <div class="top-actions">
+        <a href="https://github.com/caesariansamulde/Telecom-Survey-Picture-Converter/releases" target="_blank" class="theme-toggle" style="text-decoration: none;" title="Download Standalone Desktop EXE">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Desktop App (.EXE)</span>
+        </a>
+        <button class="theme-toggle" id="btnThemeToggle" onclick="toggleTheme()" title="Toggle Theme">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <span id="themeToggleText">Theme</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Title -->
+    <div class="hero-header">
+      <h1 class="hero-title">Survey Photo to Excel Converter</h1>
+      <p class="hero-subtitle">Instantly embed survey pole pictures directly into Excel worksheet cells with high-quality alignment.</p>
+    </div>
+
+    <!-- MAIN APP CONTAINER CARD -->
+    <div class="card" id="mainCard">
+
+      <!-- STAGE 1 & 2: SELECTION VIEW -->
+      <div id="selectionView">
+        
+        <!-- Large Interactive Drop Zone -->
+        <div class="dropzone-container" id="dropZone" onclick="triggerDefaultBrowse()">
+          <div class="dropzone-icon-bubble">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              <line x1="12" y1="11" x2="12" y2="17"/>
+              <polyline points="9 14 12 11 15 14"/>
+            </svg>
+          </div>
+          <div class="dropzone-title">Select or Drag & Drop Survey Package</div>
+          <div class="dropzone-desc">Choose a survey batch folder or .ZIP archive containing .xlsx and Picture/ photos</div>
+          
+          <div class="btn-group-center" onclick="event.stopPropagation()">
+            <button type="button" class="btn btn-primary" onclick="browseFolder()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Browse Folder...
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="browseZipFile()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              Select .ZIP Archive...
+            </button>
+          </div>
+
+          <!-- Hidden inputs for browser drag/drop and web file/folder selection -->
+          <input type="file" id="browserFileInput" accept=".zip" style="display: none;" onchange="handleBrowserFileSelected(event)">
+          <input type="file" id="browserFolderInput" webkitdirectory directory multiple style="display: none;" onchange="handleBrowserFolderSelected(event)">
+        </div>
+
+        <!-- Selected Package Preview Card (Hidden until a package is selected) -->
+        <div class="preview-card" id="previewCard">
+          <div class="preview-header">
+            <div class="preview-title-group">
+              <div class="preview-icon" id="previewIcon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div>
+                <div class="package-name" id="previewPackageName">Ready to Convert</div>
+                <div class="package-path" id="previewPackagePath">Path</div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-subtle" onclick="clearSelectedPackage()">Change</button>
+          </div>
+
+          <div class="preview-meta-row" id="previewMetaRow">
+            <div class="meta-tag success">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              <span id="previewExcelTag">Survey Excel Ready</span>
+            </div>
+            <div class="meta-tag success" id="previewPhotoTagWrapper">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              <span id="previewPhotoTag">Photos Verified</span>
+            </div>
+          </div>
+
+          <!-- Advanced Custom Output Folder (Optional Accordion) -->
+          <div class="advanced-settings-box">
+            <button type="button" class="advanced-toggle" onclick="toggleAdvancedSettings()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="advancedChevron"><polyline points="6 9 12 15 18 9"/></svg>
+              <span>Custom Output Destination (Optional)</span>
+            </button>
+            <div class="advanced-content" id="advancedContent">
+              <div class="input-wrapper" style="margin-top: 10px;">
+                <input type="text" id="customOutputPath" class="text-input" placeholder="Leave blank to save next to source package">
+                <button type="button" class="btn btn-secondary" onclick="browseOutputFolder()">Browse...</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Conversion Trigger Button -->
+          <button type="button" class="btn btn-primary" id="btnStartConvert" style="width: 100%; margin-top: 20px; padding: 15px 24px; font-size: 1rem;" onclick="startConversion()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Convert to Excel with Pictures
+          </button>
+        </div>
+
+
+
+        <!-- Manual Path Accordion -->
+        <div class="manual-toggle-area">
+          <button type="button" class="manual-toggle-btn" onclick="toggleManualInput()">or type / paste folder path manually</button>
+          <div class="manual-path-box" id="manualPathBox">
+            <div class="input-wrapper">
+              <input type="text" id="manualPathInput" class="text-input" placeholder="Paste path here, e.g. C:\Users\...\Survey_Batch">
+              <button type="button" class="btn btn-primary" onclick="applyManualPath()">Select</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- STAGE 3: LIVE PROGRESS VIEW -->
+      <div class="progress-view" id="progressView">
+        <div class="progress-spinner-box">
+          <div class="spinner-ring"></div>
+        </div>
+        <div class="progress-pct-display" id="progressPct">0%</div>
+        <div class="progress-msg-display" id="progressMsg">Scanning Survey Package...</div>
+
+        <!-- Stepper Cards -->
+        <div class="stepper-grid">
+          <div class="step-card" id="step1">
+            <div class="step-number">Step 1</div>
+            <div class="step-label">Package Locate</div>
+          </div>
+          <div class="step-card" id="step2">
+            <div class="step-number">Step 2</div>
+            <div class="step-label">Map Pole Records</div>
+          </div>
+          <div class="step-card" id="step3">
+            <div class="step-number">Step 3</div>
+            <div class="step-label">Embed Pictures</div>
+          </div>
+          <div class="step-card" id="step4">
+            <div class="step-number">Step 4</div>
+            <div class="step-label">Compile Output</div>
+          </div>
+        </div>
+
+        <div class="bar-track">
+          <div class="bar-fill" id="progressBar"></div>
+        </div>
+
+        <div class="elapsed-timer" id="elapsedTimer">Elapsed: 0.0s</div>
+      </div>
+
+      <!-- STAGE 4: RESULTS DASHBOARD -->
+      <div class="results-view" id="resultsView">
+        <div class="success-hero">
+          <div class="success-icon-badge">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="success-title">Excel File Successfully Generated!</div>
+          <div class="success-filename" id="resFilename">output.xlsx</div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="metrics-summary-grid">
+          <div class="metric-item">
+            <div class="metric-number" id="mPoles">0</div>
+            <div class="metric-caption">Poles Matched</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-number" id="mImages">0</div>
+            <div class="metric-caption">Images Embedded</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-number" id="mCells">0</div>
+            <div class="metric-caption">Cells Filled</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-number" id="mSize">0 MB</div>
+            <div class="metric-caption">File Size</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-number" id="mTime">0s</div>
+            <div class="metric-caption">Time Elapsed</div>
+          </div>
+        </div>
+
+        <!-- Notice Box for Poles with Missing Photos -->
+        <div class="qa-notice-box" id="qaNoticeBox">
+          <div class="qa-notice-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            QA Notice: Some poles had no corresponding photos
+          </div>
+          <ul class="qa-notice-list" id="qaNoticeList"></ul>
+        </div>
+
+        <!-- Action CTAs -->
+        <div class="results-cta-row">
+          <button type="button" class="btn btn-primary" onclick="downloadResultFile()" style="padding: 14px 28px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Download Excel File
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="openOutputDirectory()" style="padding: 14px 24px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            Open Folder in Explorer
+          </button>
+          <button type="button" class="btn btn-subtle" onclick="resetToNewConversion()">
+            Convert Another
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      Telecom Survey Picture Converter &bull; OpenXML / Apache POI Standard &bull; High Precision Cell Image Alignment
+    </footer>
+  </div>
+
+  <script>
+    // State
+    let selectedPackage = null; // { type: 'path'|'upload'|'client-zip', path: string, file: File|Blob, meta: {} }
+    let currentTaskId = null;
+    let currentResult = null;
+    let clientResultBlob = null;
+    let clientResultFilename = null;
+    let timerInterval = null;
+    let startTime = 0;
+    const isWebStatic = window.location.hostname.includes('github.io') || window.location.protocol === 'file:' || !window.location.port;
+
+    // Initialize
+    window.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      setupDragDrop();
+    });
+
+    // Theme Management
+    function initTheme() {
+      const savedTheme = localStorage.getItem('app-theme') || 'dark';
+      if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
+        document.getElementById('themeToggleText').innerText = 'Dark';
+      } else {
+        document.body.classList.remove('light-mode');
+        document.getElementById('themeToggleText').innerText = 'Light';
+      }
+    }
+
+    function toggleTheme() {
+      const isLight = document.body.classList.toggle('light-mode');
+      localStorage.setItem('app-theme', isLight ? 'light' : 'dark');
+      document.getElementById('themeToggleText').innerText = isLight ? 'Dark' : 'Light';
+    }
+
+
+
+    // Drag & Drop Setup
+    function setupDragDrop() {
+      const dz = document.getElementById('dropZone');
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dz.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dz.classList.add('drag-over');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dz.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dz.classList.remove('drag-over');
+        });
+      });
+
+      dz.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+          const file = files[0];
+          if (file.name.toLowerCase().endsWith('.zip')) {
+            selectUploadedFile(file);
+          } else {
+            alert('To convert a folder, please click "Browse Folder..." to select it directly from your PC.');
+          }
+        }
+      });
+    }
+
+    function triggerDefaultBrowse() {
+      browseFolder();
+    }
+
+    // Native Explorer Browse Calls
+    async function browseFolder() {
+      if (isWebStatic) {
+        document.getElementById('browserFolderInput').click();
+        return;
+      }
+      try {
+        const res = await fetch('/api/browse-folder', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+        if (!res.ok) throw new Error('Browse dialog failed');
+        const data = await res.json();
+        if (data.selected && data.path) {
+          selectPathCandidate(data.path);
+        }
+      } catch (err) {
+        document.getElementById('browserFolderInput').click();
+      }
+    }
+
+    async function browseZipFile() {
+      if (isWebStatic) {
+        document.getElementById('browserFileInput').click();
+        return;
+      }
+      try {
+        const res = await fetch('/api/browse-file', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+        if (!res.ok) throw new Error('File dialog failed');
+        const data = await res.json();
+        if (data.selected && data.path) {
+          selectPathCandidate(data.path);
+        }
+      } catch (err) {
+        document.getElementById('browserFileInput').click();
+      }
+    }
+
+    async function browseOutputFolder() {
+      try {
+        const res = await fetch('/api/browse-folder', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.selected && data.path) {
+          document.getElementById('customOutputPath').value = data.path;
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    function handleBrowserFileSelected(e) {
+      if (e.target.files && e.target.files.length > 0) {
+        selectUploadedFile(e.target.files[0]);
+      }
+    }
+
+    async function handleBrowserFolderSelected(e) {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+      showInspectingUI('Reading selected folder...');
+
+      try {
+        const zip = new JSZip();
+        let xlsxName = null;
+        let photoCount = 0;
+        const poleFolders = new Set();
+        const folderName = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'Survey_Batch';
+
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const relPath = file.webkitRelativePath || file.name;
+          const lower = relPath.toLowerCase();
+
+          if (lower.endsWith('.xlsx') && !file.name.startsWith('~$') && !lower.includes('__macosx')) {
+            if (!xlsxName || lower.includes('excel(excel and attachment)')) {
+              xlsxName = file.name;
+            }
+          }
+          if (['.jpg', '.jpeg', '.png'].some(ext => lower.endsWith(ext))) {
+            photoCount++;
+            const parts = relPath.split('/');
+            const picIdx = parts.findIndex(p => p.toLowerCase() === 'picture' || p.toLowerCase() === 'pictures');
+            if (picIdx !== -1 && picIdx + 1 < parts.length) {
+              poleFolders.add(parts[picIdx + 1]);
+            }
+          }
+          zip.file(relPath, file);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        selectedPackage = {
+          type: 'client-zip',
+          file: zipBlob,
+          name: folderName,
+          path: `Folder: ${folderName} (${files.length} items)`,
+          excelFile: xlsxName || 'Survey Excel Ready',
+          poleCount: poleFolders.size || '~',
+          photoCount: photoCount || '~',
+          isZip: false
+        };
+        renderPreviewCard();
+      } catch (err) {
+        alert('Could not read folder: ' + err.message);
+        clearSelectedPackage();
+      }
+    }
+
+    // Package Selection & Inspection
+    async function selectPathCandidate(pathStr) {
+      if (!pathStr) return;
+      showInspectingUI(pathStr);
+
+      try {
+        const res = await fetch('/api/inspect', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path: pathStr})
+        });
+        const info = await res.json();
+        if (info.valid) {
+          selectedPackage = {
+            type: 'path',
+            path: info.path,
+            name: info.name,
+            excelFile: info.excel_file,
+            poleCount: info.pole_count_est,
+            photoCount: info.photo_count_est,
+            isZip: info.is_zip
+          };
+          renderPreviewCard();
+        } else {
+          alert('Notice: ' + (info.error || 'Survey package not verified.'));
+          clearSelectedPackage();
+        }
+      } catch (err) {
+        // Fallback: direct selection
+        selectedPackage = {
+          type: 'path',
+          path: pathStr,
+          name: pathStr.split(/[\\/]/).pop() || pathStr,
+          excelFile: 'Survey Excel detected',
+          isZip: pathStr.toLowerCase().endsWith('.zip')
+        };
+        renderPreviewCard();
+      }
+    }
+
+    async function selectUploadedFile(file) {
+      if (!file) return;
+      showInspectingUI(file.name);
+
+      if (typeof JSZip !== 'undefined') {
+        try {
+          const zip = await JSZip.loadAsync(file);
+          let xlsxName = null;
+          let photoCount = 0;
+          const poleFolders = new Set();
+          
+          for (const p of Object.keys(zip.files)) {
+            const lower = p.toLowerCase();
+            const base = p.split('/').pop();
+            if (lower.endsWith('.xlsx') && !base.startsWith('~$') && !lower.includes('__macosx')) {
+              if (!xlsxName || lower.includes('excel(excel and attachment)')) {
+                xlsxName = base;
+              }
+            }
+            if (['.jpg', '.jpeg', '.png'].some(ext => lower.endsWith(ext)) && !lower.includes('__macosx')) {
+              photoCount++;
+              const parts = p.split('/');
+              const picIdx = parts.findIndex(part => part.toLowerCase() === 'picture' || part.toLowerCase() === 'pictures');
+              if (picIdx !== -1 && picIdx + 1 < parts.length) {
+                poleFolders.add(parts[picIdx + 1]);
+              }
+            }
+          }
+
+          selectedPackage = {
+            type: 'client-zip',
+            file: file,
+            name: file.name,
+            path: `Package Archive: ${file.name} (${(file.size / (1024*1024)).toFixed(1)} MB)`,
+            excelFile: xlsxName || 'Survey Excel Ready',
+            poleCount: poleFolders.size || '~',
+            photoCount: photoCount || '~',
+            isZip: true
+          };
+          renderPreviewCard();
+          return;
+        } catch (e) {
+          console.warn('JSZip preview inspection error, using upload fallback', e);
+        }
+      }
+
+      selectedPackage = {
+        type: 'upload',
+        file: file,
+        name: file.name,
+        path: `Browser File: ${file.name} (${(file.size / (1024*1024)).toFixed(1)} MB)`,
+        excelFile: 'ZIP Survey Archive',
+        isZip: true
+      };
+      renderPreviewCard();
+    }
+
+    function showInspectingUI(pathStr) {
+      document.getElementById('previewPackageName').innerText = 'Inspecting Package...';
+      document.getElementById('previewPackagePath').innerText = pathStr;
+      document.getElementById('previewCard').classList.add('active');
+      document.getElementById('dropZone').style.display = 'none';
+    }
+
+    function renderPreviewCard() {
+      if (!selectedPackage) return;
+      document.getElementById('dropZone').style.display = 'none';
+      document.getElementById('previewCard').classList.add('active');
+
+      document.getElementById('previewPackageName').innerText = selectedPackage.name;
+      document.getElementById('previewPackagePath').innerText = selectedPackage.path;
+      document.getElementById('previewExcelTag').innerText = selectedPackage.excelFile || 'Survey Excel Ready';
+
+      if (selectedPackage.poleCount !== undefined) {
+        document.getElementById('previewPhotoTag').innerText = `${selectedPackage.poleCount} Poles with Photos`;
+      } else if (selectedPackage.photoCount !== undefined) {
+        document.getElementById('previewPhotoTag').innerText = `~${selectedPackage.photoCount} Photos Ready`;
+      } else {
+        document.getElementById('previewPhotoTag').innerText = 'Photos Ready';
+      }
+
+      // Scroll smoothly to preview
+      document.getElementById('previewCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function clearSelectedPackage() {
+      selectedPackage = null;
+      document.getElementById('previewCard').classList.remove('active');
+      document.getElementById('dropZone').style.display = 'block';
+      document.getElementById('browserFileInput').value = '';
+    }
+
+    function toggleManualInput() {
+      const box = document.getElementById('manualPathBox');
+      box.classList.toggle('open');
+      if (box.classList.contains('open')) {
+        document.getElementById('manualPathInput').focus();
+      }
+    }
+
+    function applyManualPath() {
+      const val = document.getElementById('manualPathInput').value.trim();
+      if (val) {
+        selectPathCandidate(val);
+      }
+    }
+
+    function toggleAdvancedSettings() {
+      const content = document.getElementById('advancedContent');
+      content.classList.toggle('open');
+      document.getElementById('advancedChevron').style.transform = content.classList.contains('open') ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+
+    // Start Conversion Workflow
+    async function startConversion() {
+      if (!selectedPackage) return;
+
+      // 1. Client-Side Web Mode (runs 100% in browser via JSZip)
+      if (selectedPackage.type === 'client-zip') {
+        showProgressView();
+        try {
+          const result = await processSurveyZip(selectedPackage.file, (pct, msg, meta) => {
+            document.getElementById('progressBar').style.width = `${pct}%`;
+            document.getElementById('progressPct').innerText = `${pct}%`;
+            document.getElementById('progressMsg').innerText = msg;
+            const stage = (meta && meta.stage) || (pct > 90 ? 4 : (pct > 40 ? 3 : (pct > 20 ? 2 : 1)));
+            updateStepper(stage);
+          });
+
+          clientResultBlob = result.data;
+          clientResultFilename = result.filename;
+          clearInterval(timerInterval);
+
+          // Download automatically
+          downloadClientResultBlob();
+          showResultsView(result);
+        } catch (err) {
+          clearInterval(timerInterval);
+          alert('Conversion Failed: ' + err.message);
+          showSelectionView();
+        }
+        return;
+      }
+
+      // 2. Desktop / Local Server Mode
+      const customOut = document.getElementById('customOutputPath').value.trim() || null;
+      showProgressView();
+
+      try {
+        let taskId = null;
+
+        if (selectedPackage.type === 'path') {
+          const res = await fetch('/api/convert/path', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              path: selectedPackage.path,
+              output_folder: customOut
+            })
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Failed to start conversion');
+          }
+          const data = await res.json();
+          taskId = data.task_id;
+        } else if (selectedPackage.type === 'upload') {
+          const formData = new FormData();
+          formData.append('file', selectedPackage.file);
+          const res = await fetch('/api/convert/upload', {
+            method: 'POST',
+            body: formData
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Upload failed');
+          }
+          const data = await res.json();
+          taskId = data.task_id;
+        }
+
+        currentTaskId = taskId;
+        listenProgress(currentTaskId);
+      } catch (err) {
+        alert('Error: ' + err.message);
+        showSelectionView();
+      }
+    }
+
+    function showProgressView() {
+      document.getElementById('selectionView').style.display = 'none';
+      document.getElementById('resultsView').classList.remove('active');
+      document.getElementById('progressView').classList.add('active');
+
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('progressPct').innerText = '0%';
+      document.getElementById('progressMsg').innerText = 'Starting Conversion Engine...';
+      updateStepper(1);
+
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        const sec = ((Date.now() - startTime) / 1000).toFixed(1);
+        document.getElementById('elapsedTimer').innerText = `Elapsed: ${sec}s`;
+      }, 200);
+    }
+
+    function showSelectionView() {
+      clearInterval(timerInterval);
+      document.getElementById('progressView').classList.remove('active');
+      document.getElementById('resultsView').classList.remove('active');
+      document.getElementById('selectionView').style.display = 'block';
+    }
+
+    function updateStepper(stage) {
+      for (let s = 1; s <= 4; s++) {
+        const el = document.getElementById(`step${s}`);
+        el.className = 'step-card';
+        if (s < stage) el.classList.add('done');
+        else if (s === stage) el.classList.add('active');
+      }
+    }
+
+    function listenProgress(taskId) {
+      const evtSource = new EventSource(`/api/progress/${taskId}`);
+
+      evtSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        const pct = data.percent || 0;
+        document.getElementById('progressBar').style.width = `${pct}%`;
+        document.getElementById('progressPct').innerText = `${pct}%`;
+        document.getElementById('progressMsg').innerText = data.message || 'Processing...';
+
+        const stage = (data.meta && data.meta.stage) || (pct > 90 ? 4 : (pct > 25 ? 3 : (pct > 10 ? 2 : 1)));
+        updateStepper(stage);
+
+        if (data.status === 'completed') {
+          evtSource.close();
+          clearInterval(timerInterval);
+          setTimeout(() => showResultsView(data.result), 500);
+        } else if (data.status === 'failed') {
+          evtSource.close();
+          clearInterval(timerInterval);
+          alert('Conversion Failed: ' + data.message);
+          showSelectionView();
+        }
+      };
+
+      evtSource.onerror = (err) => {
+        console.warn('Progress event stream disconnected', err);
+      };
+    }
+
+    function showResultsView(result) {
+      currentResult = result;
+      document.getElementById('progressView').classList.remove('active');
+      document.getElementById('resultsView').classList.add('active');
+
+      document.getElementById('resFilename').innerText = result.filename || 'excelPic.xlsx';
+      document.getElementById('mPoles').innerText = result.matched_poles || 0;
+      document.getElementById('mImages').innerText = (result.total_images || 0).toLocaleString();
+      document.getElementById('mCells').innerText = (result.total_cells || 0).toLocaleString();
+      document.getElementById('mSize').innerText = `${result.file_size_mb || 0} MB`;
+      document.getElementById('mTime').innerText = `${result.elapsed_seconds || 0}s`;
+
+      const qaBox = document.getElementById('qaNoticeBox');
+      const qaList = document.getElementById('qaNoticeList');
+      if (result.missing_poles && result.missing_poles.length > 0) {
+        qaList.innerHTML = '';
+        result.missing_poles.forEach(mp => {
+          const li = document.createElement('li');
+          li.innerText = mp;
+          qaList.appendChild(li);
+        });
+        qaBox.style.display = 'block';
+      } else {
+        qaBox.style.display = 'none';
+      }
+    }
+
+    function downloadResultFile() {
+      if (clientResultBlob) {
+        downloadClientResultBlob();
+      } else if (currentTaskId) {
+        window.location.href = `/api/download/${currentTaskId}`;
+      }
+    }
+
+    function downloadClientResultBlob() {
+      if (!clientResultBlob) return;
+      const url = URL.createObjectURL(clientResultBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = clientResultFilename || 'excelPic.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+
+    async function openOutputDirectory() {
+      if (clientResultBlob) {
+        downloadClientResultBlob();
+        return;
+      }
+      if (currentResult && currentResult.output_dir) {
+        try {
+          const res = await fetch('/api/open-folder', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: currentResult.output_dir})
+          });
+          const data = await res.json();
+          if (data.status === 'warning') {
+            alert(data.message);
+          }
+        } catch (e) {
+          alert('Could not open folder automatically: ' + e.message);
+        }
+      }
+    }
+
+    function resetToNewConversion() {
+      currentTaskId = null;
+      currentResult = null;
+      clientResultBlob = null;
+      clientResultFilename = null;
+      clearSelectedPackage();
+      showSelectionView();
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

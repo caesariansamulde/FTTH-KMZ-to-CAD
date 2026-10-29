@@ -28,6 +28,7 @@ import {
   type MapOverlayLine,
   type HldOverlayPin,
 } from "./ProposedNapMapModal";
+import { ExcelPicConverter } from "./ExcelPicConverter";
 import "./styles.css";
 
 type LonLat = {
@@ -146,7 +147,7 @@ type ClassifiedPlacemark = Placemark & {
   poleId?: string;
 };
 
-export type ConverterMode = "pole_survey" | "hld_nap";
+export type ConverterMode = "pole_survey" | "hld_nap" | "excel_pic";
 
 export type NapStatus = "PROPOSED" | "VETTED" | "SOURCE" | "EXISTING" | "DUMMY";
 
@@ -12175,9 +12176,19 @@ function App() {
             <span>🌐</span>
             <span>HLD NAP & Stencil Converter</span>
           </button>
+          <button
+            type="button"
+            className={`modeTab ${converterMode === "excel_pic" ? "active" : ""}`}
+            onClick={() => setConverterMode("excel_pic")}
+          >
+            <span>📸</span>
+            <span>Survey Photo to Excel (excelPic)</span>
+          </button>
         </div>
 
-        {converterMode === "hld_nap" ? (
+        {converterMode === "excel_pic" ? (
+          <ExcelPicConverter />
+        ) : converterMode === "hld_nap" ? (
           <div className="shell">
             {/* Top-Left: HLD Settings & Dropzone */}
             <div className="uploadArea">
