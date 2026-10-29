@@ -285,6 +285,10 @@ const layerMeta: Record<LayerName, { label: string; color: number }> = {
   DLPC: { label: "Davao Light & Power (DLPC) poles", color: 7 },
   MERALCO: { label: "Meralco electric poles", color: 7 },
   COTELCO: { label: "Cotabato Electric (COTELCO) poles", color: 7 },
+  BUSECO: { label: "Bukidnon Second Electric Coop (BUSECO) poles", color: 7 },
+  FIBECO: { label: "First Bukidnon Electric Coop (FIBECO) poles", color: 7 },
+  MORESCO: { label: "Misamis Oriental Electric Coop (MORESCO) poles", color: 7 },
+  CEPALCO: { label: "Cagayan Electric Power & Light (CEPALCO) poles", color: 7 },
   MORE: { label: "MORE Electric Power poles", color: 7 },
   VECO: { label: "Visayan Electric (VECO) poles", color: 7 },
   "P-POLE 9.14m CC": { label: "Proposed pole markers (P-POLE)", color: 1 },
@@ -401,6 +405,10 @@ export const electricCoopAliases: Record<string, string> = {
   "moresco": "MORESCO",
   "fibeco": "FIBECO",
   "buseco": "BUSECO",
+  "busec": "BUSECO",
+  "surseco": "SURSECO",
+  "siarelco": "SIARELCO",
+  "dinagat": "DIELCO",
   "laneco": "LANECO",
   "dorelco": "DORELCO",
   "dasureco": "DASURECO",
@@ -866,6 +874,23 @@ export function parseMapsMePoleComponents(placemarkOrName: Placemark | string): 
         /^[A-Za-z]+$/.test(tokens[0]) &&
         !/^npt?$/i.test(tokens[0]) &&
         parseMapsMeMaterialToken(tokens[0]) === null;
+      let elecOwner = "ELECTRIC";
+      if (firstIsOwner) {
+        const lowerFirst = tokens[0].toLowerCase();
+        if (electricCoopAliases[lowerFirst]) {
+          elecOwner = electricCoopAliases[lowerFirst];
+        } else {
+          for (const [aliasKey, coopCode] of Object.entries(electricCoopAliases)) {
+            if (lowerFirst.includes(aliasKey)) {
+              elecOwner = coopCode;
+              break;
+            }
+          }
+          if (elecOwner === "ELECTRIC" && !/^(?:elec|electric|epole|ep|pole)$/i.test(tokens[0])) {
+            elecOwner = tokens[0].toUpperCase();
+          }
+        }
+      }
       const startIndex = firstIsOwner ? 1 : 0;
       for (let i = startIndex; i < tokens.length; i += 1) {
         const mat = parseMapsMeMaterialToken(tokens[i]);
@@ -879,7 +904,7 @@ export function parseMapsMePoleComponents(placemarkOrName: Placemark | string): 
       const cleanTag = !tag || /^(?:ep[-_\s]*)?npt?$/i.test(tag) ? "NPT" : tag.toUpperCase();
       return {
         kind: "ELECTRIC",
-        owner: "ELECTRIC",
+        owner: elecOwner,
         poleCode: "G",
         poleNo: cleanTag,
         poleType: poleType || "CC",
@@ -2201,6 +2226,9 @@ function detectPoleOwner(placemark: Placemark): string {
     if (placemark.properties._mapsMeKind === "PROPOSED") {
       return "OTHER";
     }
+    if (placemark.properties._mapsMeOwner && placemark.properties._mapsMeOwner !== "ELECTRIC") {
+      return placemark.properties._mapsMeOwner;
+    }
     if (explicitOwner) {
       for (const [key, code] of Object.entries(electricCoopAliases)) {
         if (explicitOwner.includes(key)) return code;
@@ -2287,6 +2315,36 @@ function isElectricPole(placemark: Placemark): boolean {
   );
 }
 
+export function detectSiteElectricCoop(placemarks: Placemark[]): string | null {
+  const coopCounts: Record<string, number> = {};
+  for (const p of placemarks) {
+    if (p.geometry.type !== "Point") continue;
+    const mm = parseMapsMePoleComponents(p);
+    if (mm.kind === "ELECTRIC" && mm.owner && mm.owner !== "ELECTRIC") {
+      coopCounts[mm.owner] = (coopCounts[mm.owner] || 0) + 1;
+      continue;
+    }
+    const owner = detectPoleOwner(p);
+    if (
+      owner &&
+      owner !== "OTHER" &&
+      owner !== "ELECTRIC" &&
+      !["PLDT", "GLOBE", "INNOVE", "SMART", "CONVERGE", "DITO", "TELOF", "ETPI"].includes(owner)
+    ) {
+      coopCounts[owner] = (coopCounts[owner] || 0) + 1;
+    }
+  }
+  let bestCoop: string | null = null;
+  let bestCount = 0;
+  for (const [coop, count] of Object.entries(coopCounts)) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestCoop = coop;
+    }
+  }
+  return bestCoop;
+}
+
 export function determinePoleLayer(
   placemark: Placemark,
   provider: TelcoProvider = "globe",
@@ -2307,25 +2365,33 @@ export function determinePoleLayer(
   if (detectedOwner === "TELOF") return "TELOF";
   if (detectedOwner === "ETPI") return "ETPI";
 
-  // 2. Electric Poles with detected utility coop
-  if (detectedOwner && detectedOwner !== "OTHER" && detectedOwner !== "ELECTRIC") {
-    return detectedOwner as LayerName;
+  const configuredUtility = (electricUtility || "AUTO").toUpperCase().trim();
+
+  // 2. User-configured generic override
+  if (configuredUtility === "GENERIC") {
+    if (isElectricPole(placemark) || detectedOwner === "ELECTRIC" || (detectedOwner && detectedOwner !== "OTHER")) {
+      return pldtMode ? "ELECTRIC POLE" : "EXPOLE";
+    }
   }
 
-  // 3. User-configured electricUtility
-  const configuredUtility = (electricUtility || "AUTO").toUpperCase().trim();
+  // 3. User-configured or site-detected electricUtility
   if (configuredUtility && configuredUtility !== "AUTO" && configuredUtility !== "GENERIC") {
     if (isElectricPole(placemark) || detectedOwner === "ELECTRIC" || detectedOwner === "OTHER") {
       return configuredUtility as LayerName;
     }
   }
 
-  // 4. Generic Electric
+  // 4. Electric Poles with detected utility coop on the individual pole
+  if (detectedOwner && detectedOwner !== "OTHER" && detectedOwner !== "ELECTRIC") {
+    return detectedOwner as LayerName;
+  }
+
+  // 5. Generic Electric
   if (isElectricPole(placemark) || detectedOwner === "ELECTRIC") {
     return pldtMode ? "ELECTRIC POLE" : "EXPOLE";
   }
 
-  // 5. Default fallback by provider
+  // 6. Default fallback by provider
   return pldtMode ? "PLDT" : "GLOBE";
 }
 
@@ -11715,7 +11781,12 @@ function App() {
       }
       const filteredSurvey = filterPoleSurveyPlacemarks(parsed);
       const poleOnlyParsed = autoHldNaps.length > 0 ? filteredSurvey.filter((p) => !isHldNapPoint(p)) : filteredSurvey;
-      const placemarks = poleOnlyParsed.map((p) => classifyPlacemark(p, activeProvider, effectivePoleStandard.electricUtility));
+      const siteDetectedCoop = detectSiteElectricCoop(poleOnlyParsed);
+      const effectiveElectricUtility =
+        !effectivePoleStandard.electricUtility || effectivePoleStandard.electricUtility === "AUTO"
+          ? siteDetectedCoop || "AUTO"
+          : effectivePoleStandard.electricUtility;
+      const placemarks = poleOnlyParsed.map((p) => classifyPlacemark(p, activeProvider, effectiveElectricUtility));
       const center = calculateCenter(collectCoordinates(poleOnlyParsed.length ? poleOnlyParsed : parsed));
       const { dxf, zone } = createDxf(
         placemarks,
@@ -11839,7 +11910,12 @@ function App() {
     setPoleStandard((current) => {
       const next = { ...current, ...update };
       if (result) {
-        const placemarks = result.placemarks.map((p) => classifyPlacemark(p, telcoProvider, next.electricUtility));
+        const siteDetectedCoop = detectSiteElectricCoop(result.placemarks);
+        const effectiveElectricUtility =
+          !next.electricUtility || next.electricUtility === "AUTO"
+            ? siteDetectedCoop || "AUTO"
+            : next.electricUtility;
+        const placemarks = result.placemarks.map((p) => classifyPlacemark(p, telcoProvider, effectiveElectricUtility));
         const { dxf, zone } = createDxf(placemarks, result.center, result.fileName, next, coordinateMode, "STANDARD", telcoProvider, roadStandard, cableStandard, activeHldProposedNaps);
         setResult({ ...result, placemarks, dxf, zone });
       }
@@ -12142,7 +12218,12 @@ function App() {
     };
     setPoleStandard(nextPoleStandard);
     if (result) {
-      const placemarks = result.placemarks.map((p) => classifyPlacemark(p, nextProvider, nextPoleStandard.electricUtility));
+      const siteDetectedCoop = detectSiteElectricCoop(result.placemarks);
+      const effectiveElectricUtility =
+        !nextPoleStandard.electricUtility || nextPoleStandard.electricUtility === "AUTO"
+          ? siteDetectedCoop || "AUTO"
+          : nextPoleStandard.electricUtility;
+      const placemarks = result.placemarks.map((p) => classifyPlacemark(p, nextProvider, effectiveElectricUtility));
       const { dxf, zone } = createDxf(
         placemarks,
         result.center,
@@ -12972,6 +13053,22 @@ function App() {
                     </strong>
                   </div>
                   <div>
+                    <span>Electric Coop / Utility</span>
+                    <strong style={{ color: "#15803d" }}>
+                      {(() => {
+                        const sel = poleStandard.electricUtility || "AUTO";
+                        const autoCoop = detectSiteElectricCoop(result.placemarks);
+                        if (sel === "AUTO") {
+                          return autoCoop ? `${autoCoop} (Auto-detected)` : isPldtProvider(telcoProvider) ? "ELECTRIC POLE" : "EXPOLE";
+                        }
+                        if (sel === "GENERIC") {
+                          return isPldtProvider(telcoProvider) ? "ELECTRIC POLE" : "EXPOLE";
+                        }
+                        return sel;
+                      })()}
+                    </strong>
+                  </div>
+                  <div>
                     <span>Total Objects</span>
                     <strong>{result.placemarks.length} items</strong>
                   </div>
@@ -13206,7 +13303,7 @@ function App() {
 
             {result ? (
               <div>
-                <div style={{ marginBottom: "14px" }}>
+                <div style={{ marginBottom: "14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                   <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", fontWeight: 600, color: "var(--text-main)" }}>
                     <span>Coordinate System:</span>
                     <select
@@ -13218,7 +13315,7 @@ function App() {
                         border: "1px solid var(--border-soft)",
                         background: "var(--bg-elevated)",
                         color: "var(--text-main)",
-                        fontSize: "13.5px",
+                        fontSize: "13px",
                         fontWeight: 500,
                         cursor: "pointer"
                       }}
@@ -13228,6 +13325,55 @@ function App() {
                       <option value="epsg_4326_lat_lon">Raw Degrees: WGS 84 (EPSG:4326) — X Lat, Y Lon</option>
                       <option value="epsg_4326_lon_lat">Raw Degrees: WGS 84 (EPSG:4326) — X Lon, Y Lat</option>
                       <option value="utm">Actual Scale: WGS 84 / UTM Zone 51N (Ground meters)</option>
+                    </select>
+                  </label>
+                  <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", fontWeight: 600, color: "var(--text-main)" }}>
+                    <span>Site Electric Coop / Utility Layer:</span>
+                    <select
+                      value={poleStandard.electricUtility || "AUTO"}
+                      onChange={(event) => updatePoleStandard({ electricUtility: event.target.value })}
+                      style={{
+                        padding: "9px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border-soft)",
+                        background: "var(--bg-elevated)",
+                        color: "var(--text-main)",
+                        fontSize: "13px",
+                        fontWeight: 500,
+                        cursor: "pointer"
+                      }}
+                    >
+                      <option value="AUTO">
+                        {(() => {
+                          const autoCoop = detectSiteElectricCoop(result.placemarks);
+                          return autoCoop ? `Auto-detect (${autoCoop} Detected)` : "Auto-detect from KMZ (Default)";
+                        })()}
+                      </option>
+                      <option value="BUSECO">BUSECO (Bukidnon Second Electric Coop)</option>
+                      <option value="FIBECO">FIBECO (First Bukidnon Electric Coop)</option>
+                      <option value="MORESCO">MORESCO (Misamis Oriental Electric Coop)</option>
+                      <option value="CEPALCO">CEPALCO (Cagayan de Oro)</option>
+                      <option value="DLPC">DLPC (Davao Light & Power)</option>
+                      <option value="DANECO">DANECO / NORDECO (Davao del Norte)</option>
+                      <option value="DASURECO">DASURECO (Davao del Sur)</option>
+                      <option value="COTELCO">COTELCO (Cotabato Electric)</option>
+                      <option value="SOCOTECO">SOCOTECO (South Cotabato)</option>
+                      <option value="SUKELCO">SUKELCO (Sultan Kudarat)</option>
+                      <option value="LANECO">LANECO (Lanao del Norte)</option>
+                      <option value="MOELCI">MOELCI (Misamis Occidental)</option>
+                      <option value="ANECO">ANECO (Agusan del Norte)</option>
+                      <option value="ASELCO">ASELCO (Agusan del Sur)</option>
+                      <option value="SURSECO">SURSECO (Surigao del Sur)</option>
+                      <option value="ZANECO">ZANECO (Zamboanga del Norte)</option>
+                      <option value="ZAMSURECO">ZAMSURECO (Zamboanga del Sur)</option>
+                      <option value="ZAMCELCO">ZAMCELCO (Zamboanga City)</option>
+                      <option value="MERALCO">MERALCO (Manila Electric Co.)</option>
+                      <option value="VECO">VECO (Visayan Electric)</option>
+                      <option value="MORE">MORE Power (Iloilo)</option>
+                      <option value="LEYECO">LEYECO (Leyte)</option>
+                      <option value="ILECO">ILECO (Iloilo)</option>
+                      <option value="BENECO">BENECO (Benguet)</option>
+                      <option value="GENERIC">Generic (EXPOLE / ELECTRIC POLE)</option>
                     </select>
                   </label>
                 </div>
@@ -13522,18 +13668,30 @@ function App() {
                     onChange={(event) => updatePoleStandard({ electricUtility: event.target.value })}
                   >
                     <option value="AUTO">Auto-detect from KMZ (Default)</option>
+                    <option value="BUSECO">BUSECO (Bukidnon Second Electric Coop)</option>
+                    <option value="FIBECO">FIBECO (First Bukidnon Electric Coop)</option>
+                    <option value="MORESCO">MORESCO (Misamis Oriental Electric Coop)</option>
+                    <option value="CEPALCO">CEPALCO (Cagayan de Oro)</option>
                     <option value="DLPC">DLPC (Davao Light & Power)</option>
-                    <option value="MERALCO">MERALCO (Manila Electric Co.)</option>
-                    <option value="COTELCO">COTELCO (Cotabato Electric)</option>
-                    <option value="MORE">MORE Power (Iloilo)</option>
-                    <option value="VECO">VECO (Visayan Electric)</option>
                     <option value="DANECO">DANECO / NORDECO (Davao del Norte)</option>
                     <option value="DASURECO">DASURECO (Davao del Sur)</option>
-                    <option value="BENECO">BENECO (Benguet)</option>
+                    <option value="COTELCO">COTELCO (Cotabato Electric)</option>
                     <option value="SOCOTECO">SOCOTECO (South Cotabato)</option>
+                    <option value="SUKELCO">SUKELCO (Sultan Kudarat)</option>
+                    <option value="LANECO">LANECO (Lanao del Norte)</option>
+                    <option value="MOELCI">MOELCI (Misamis Occidental)</option>
+                    <option value="ANECO">ANECO (Agusan del Norte)</option>
+                    <option value="ASELCO">ASELCO (Agusan del Sur)</option>
+                    <option value="SURSECO">SURSECO (Surigao del Sur)</option>
+                    <option value="ZANECO">ZANECO (Zamboanga del Norte)</option>
+                    <option value="ZAMSURECO">ZAMSURECO (Zamboanga del Sur)</option>
+                    <option value="ZAMCELCO">ZAMCELCO (Zamboanga City)</option>
+                    <option value="MERALCO">MERALCO (Manila Electric Co.)</option>
+                    <option value="MORE">MORE Power (Iloilo)</option>
+                    <option value="VECO">VECO (Visayan Electric)</option>
                     <option value="LEYECO">LEYECO (Leyte)</option>
                     <option value="ILECO">ILECO (Iloilo)</option>
-                    <option value="CEPALCO">CEPALCO (Cagayan de Oro)</option>
+                    <option value="BENECO">BENECO (Benguet)</option>
                     <option value="GENERIC">Generic (ELECTRIC POLE / EXPOLE)</option>
                   </select>
                 </label>
