@@ -710,15 +710,38 @@ function mapMapsMeMaterial(mat?: string): "CC" | "ST" | "WO" {
   if (!mat) return "CC";
   const l = mat.toLowerCase();
   if (l.startsWith("w")) return "WO";
-  if (l.startsWith("s") || l === "gi" || l === "me") return "ST";
+  if (l.startsWith("s") || l === "gi" || l === "me" || l === "iron") return "ST";
   return "CC";
+}
+
+function parseMapsMeMaterialToken(tok: string): "CC" | "ST" | "WO" | null {
+  const t = tok.trim();
+  const m = t.match(/^(cc|c?concrete|st|steel|metal|gi|iron|sc|wd|wo|wp|wood|wooden)(?:[-_\s]*(?:7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)m?)?$/i);
+  if (!m) return null;
+  return mapMapsMeMaterial(m[1]);
+}
+
+function isMapsMeHeightToken(tok: string): boolean {
+  return /^(?:7(?:\.5)?|8|9(?:\.14)?|10|11|12|13|14)m?$/i.test(tok.trim());
 }
 
 export function looksLikeMapsMePoleName(name: string): boolean {
   const rawName = (name || "").trim();
   if (!rawName) return false;
-  if (/^p(?:rop(?:osed)?)?[-_\s]*(?:7(?:\.5)?|8|9(?:\.14)?|10|11|12)m?(?:[-_\s]*(?:cc|st|wd|wo|wp|gi))?(?:\b|$)/i.test(rawName)) {
+  if (/^p(?:rop(?:osed)?(?:\s*pole)?)?[-_\s]*(?:7(?:\.5)?|8|9(?:\.14)?|10|11|12)m?(?:[-_\s]*(?:cc|c?concrete|st|steel|wd|wo|wp|wood|wooden|gi))?(?:\b|$)/i.test(rawName)) {
     return true;
+  }
+  if (/^(?:proposed\s*pole|prop\s*pole|p-pole|ppole|new\s*pole)(?:[-_\s,]+(?:cc|c?concrete|st|steel|wd|wo|wp|wood|wooden|gi))?(?:[-_\s,]+(?:7(?:\.5)?|8|9(?:\.14)?|10|11|12)m?)?$/i.test(rawName)) {
+    return true;
+  }
+  if (rawName.includes(",")) {
+    const tokens = rawName.split(",").map((t) => t.trim()).filter(Boolean);
+    if (tokens.length >= 2) {
+      const hasMatOrHeightOrNpt = tokens.some(
+        (t) => parseMapsMeMaterialToken(t) !== null || isMapsMeHeightToken(t) || /^npt?$/i.test(t),
+      );
+      if (hasMatOrHeightOrNpt) return true;
+    }
   }
   if (/^(?:globe|innove|pldt|smart|converge|conv|dito|etpi|telof|gt|gl|pt|ic|cv)(?:[-_\s]+|(?=(?:npt?|\d)))(.+)$/i.test(rawName)) {
     return true;
@@ -738,9 +761,9 @@ export function looksLikeMapsMePoleName(name: string): boolean {
 export function parseMapsMePoleComponents(placemarkOrName: Placemark | string): MapsMePoleComponents {
   const rawName = (typeof placemarkOrName === "string" ? placemarkOrName : placemarkOrName.name || "").trim();
 
-  // 1. Proposed Pole (e.g., "p7", "p9", "P9 proposed 72F closure", "p-7", "p7cc")
+  // 1. Proposed Pole with explicit height (e.g., "p7", "p9", "P9 proposed 72F closure", "p-7", "p7cc")
   const propMatch = rawName.match(
-    /^p(?:rop(?:osed)?)?[-_\s]*(7(?:\.5)?|8|9(?:\.14)?|10|11|12)m?(?:[-_\s]*(cc|st|wd|wo|wp|gi))?(?:\b|$)/i,
+    /^p(?:rop(?:osed)?(?:\s*pole)?)?[-_\s]*(7(?:\.5)?|8|9(?:\.14)?|10|11|12)m?(?:[-_\s]*(cc|c?concrete|st|steel|wd|wo|wp|wood|wooden|gi))?(?:\b|$)/i,
   );
   if (propMatch) {
     const hToken = propMatch[1];
@@ -759,6 +782,110 @@ export function parseMapsMePoleComponents(placemarkOrName: Placemark | string): 
       poleType: mapMapsMeMaterial(propMatch[2]),
       poleHeight,
     };
+  }
+
+  // 1b. Proposed Pole without height prefix (e.g., "proposed pole", "PROPOSED pole", "PROPOSED POLE", "PROPOSED POLe") -> defaults to 7.5m
+  const plainPropMatch = rawName.match(
+    /^(?:proposed\s*pole|prop\s*pole|p-pole|ppole|new\s*pole)(?:[-_\s,]+(cc|c?concrete|st|steel|wd|wo|wp|wood|wooden|gi))?(?:[-_\s,]+(7(?:\.5)?|8|9(?:\.14)?|10|11|12)m?)?$/i,
+  );
+  if (plainPropMatch) {
+    const hToken = plainPropMatch[2] || "7.5";
+    const poleHeight = hToken.startsWith("9") ? "9.0m" : hToken.startsWith("8") ? "8.0m" : "7.5m";
+    return {
+      kind: "PROPOSED",
+      owner: "PROPOSED",
+      poleCode: "G",
+      poleNo: "PROPOSED POLE",
+      poleType: mapMapsMeMaterial(plainPropMatch[1]),
+      poleHeight,
+    };
+  }
+
+  // 2. Comma-separated format (e.g., "BUSECO, 1202479, CONCRETE", "BUSECO,NPT,STEEL,11", "BUSECO, CONCRETE", "BUSECO,NPT,CCONCRETE, 11", "BUSEC,NPT,CC,11", "GLOBE,NPT,CC,9", "GLOBE,NPT,9")
+  if (rawName.includes(",")) {
+    const tokens = rawName.split(",").map((t) => t.trim()).filter(Boolean);
+    if (tokens.length >= 2) {
+      const first = tokens[0].toLowerCase();
+      const telcoOwnerMatch = first.match(/^(globe|innove|pldt|smart|converge|conv|dito|etpi|telof|gt|gl|pt|ic|cv)$/i);
+      if (telcoOwnerMatch) {
+        let owner = "GLOBE";
+        let prefix = "GT";
+        let poleCode = "G";
+        if (first === "pt" || first === "pldt" || first === "smart") {
+          owner = "PLDT";
+          prefix = "PT";
+          poleCode = "P";
+        } else if (first === "ic" || first === "innove") {
+          owner = "INNOVE";
+          prefix = "IC";
+          poleCode = "I";
+        } else if (first === "cv" || first === "conv" || first === "converge") {
+          owner = "CONVERGE";
+          prefix = "C";
+          poleCode = "C";
+        } else if (first === "dito") {
+          owner = "DITO";
+          prefix = "DITO";
+          poleCode = "D";
+        } else if (first === "etpi") {
+          owner = "ETPI";
+          prefix = "ETPI";
+          poleCode = "E";
+        } else if (first === "telof") {
+          owner = "TELOF";
+          prefix = "TELOF";
+          poleCode = "T";
+        }
+
+        let poleType: "CC" | "ST" | "WO" = "CC";
+        let tag = "";
+        for (let i = 1; i < tokens.length; i += 1) {
+          const mat = parseMapsMeMaterialToken(tokens[i]);
+          if (mat) {
+            poleType = mat;
+            continue;
+          }
+          if (isMapsMeHeightToken(tokens[i])) continue;
+          if (!tag) tag = tokens[i];
+        }
+        const cleanTag = !tag || /^npt?$/i.test(tag) ? "NPT" : tag.toUpperCase();
+        return {
+          kind: "TELCO",
+          owner,
+          poleCode,
+          poleNo: `${prefix} - ${cleanTag}`,
+          poleType,
+          poleHeight: "9.0m",
+        };
+      }
+
+      // Electric utility / coop comma-separated (e.g. BUSECO, BUSEC, MORESCO, DLPC, COTELCO, ELEC)
+      let poleType: "CC" | "ST" | "WO" | null = null;
+      let tag = "";
+      const firstIsOwner =
+        /^[A-Za-z]+$/.test(tokens[0]) &&
+        !/^npt?$/i.test(tokens[0]) &&
+        parseMapsMeMaterialToken(tokens[0]) === null;
+      const startIndex = firstIsOwner ? 1 : 0;
+      for (let i = startIndex; i < tokens.length; i += 1) {
+        const mat = parseMapsMeMaterialToken(tokens[i]);
+        if (mat) {
+          if (!poleType) poleType = mat;
+          continue;
+        }
+        if (isMapsMeHeightToken(tokens[i])) continue;
+        if (!tag) tag = tokens[i];
+      }
+      const cleanTag = !tag || /^(?:ep[-_\s]*)?npt?$/i.test(tag) ? "NPT" : tag.toUpperCase();
+      return {
+        kind: "ELECTRIC",
+        owner: "ELECTRIC",
+        poleCode: "G",
+        poleNo: cleanTag,
+        poleType: poleType || "CC",
+        poleHeight: "9.0m",
+      };
+    }
   }
 
   // 2. Telco Pole (e.g., "ptnptcc9", "ptnptcc7", "Globenpt9", "pt12345cc9", "gtnptcc9")
@@ -1903,6 +2030,9 @@ function resolveGlobeProposedPoleHeight(placemark: Placemark): string {
   }
   const rawName = (placemark.name || "").trim();
   if (/^p(?:rop)?[-_\s]*7(?:\b|$)/i.test(rawName)) {
+    return "7.5m";
+  }
+  if (/^(?:proposed\s*pole|prop\s*pole|p-pole|ppole|new\s*pole)$/i.test(rawName) && placemark.properties?._mwm === "true") {
     return "7.5m";
   }
   return "9.0m";
